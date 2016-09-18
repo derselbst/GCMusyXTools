@@ -11,8 +11,14 @@
 #include <sstream>
 #include <string>
 #include <regex>
-#include <direct.h>
+// #include <direct.h>
 #include <math.h>
+#include <byteswap.h>
+
+/** For Reference see:
+ * http://hcs64.com/files/DSPADPCM.us.pdf
+ * http://www.metroid2002.com/retromodding/wiki/AGSC_(File_Format)
+ */
 
 using namespace std;
 
@@ -51,13 +57,56 @@ typedef struct
     u8 baseNote;
     u8 loopFlag;
     u32 sampleRate;
-    u32 sampleCount;
+    
+    /* according to  http://www.metroid2002.com/retromodding/wiki/AGSC_(File_Format)
+     * 0: DSP compressed sample
+     * 1: DSP compressed drum-sample
+     * 2: PCM
+     * 3: VADPCM compressed (N64 legacy)
+     */    
+    u8 sampleFormat
+    
+    u32 sampleCount; // no. of raw, i.e. uncompressed pcm frames
     u32 loopStart;
     u32 loopLength;
-    u32 infoOffset;
-    u32 channels;
+    u32 infoOffset; // adpcm decoder
     u16 adpcmCoeff[16];
+    // DSP decoder initial state
+    u16 bytesPerFrame;
+    u8 ps;           // predictor/scale, actually 2 bytes, higher byte is zero though
+    u16 yn1;          // sample history
+    u16 yn2;          // sample history
+
+    // DSP decoder loop context
+    u8 lps;          // predictor/scale for loop context, actually 2 bytes, higher byte is zero though
+    u16 lyn1;         // sample history (n-1) for loop context
+    u16 lyn2;         // sample history (n-2) for loop context
 } dsp;
+
+//typedef struct
+//{
+//// for header generation during decode
+//u32 num_samples;      // total number of RAW samples
+//u32 num_adpcm_nibbles // number of ADPCM nibbles (including frame headers)
+//u32 sample_rate;      // Sample rate, in Hz
+//// DSP addressing and decode context
+//u16 loop_flag;    // 1=LOOPED, 0=NOT LOOPED
+//u16 format;       // Always 0x0000, for ADPCM
+//u32 sa;           // Start offset address for looped samples (zero for non-looped)
+//u32 ea;           // End offset address for looped samples
+//u32 ca;           // always zero
+//u16 coef[16];     // decode coefficients (eight pairs of 16-bit words)
+//// DSP decoder initial state
+//u16 gain;         // always zero for ADPCM
+//u16 ps;           // predictor/scale
+//u16 yn1;          // sample history
+//u16 yn2;          // sample history
+//// DSP decoder loop context
+//u16 lps;          // predictor/scale for loop context
+//u16 lyn1;         // sample history (n-1) for loop context
+//u16 lyn2;         // sample history (n-2) for loop context
+//u16 pad[11];      // reserved
+//} sDSPADPCM;
 
 typedef struct
 {
@@ -189,6 +238,46 @@ static const char *const general_MIDI_instr_names[128] =
     "Applause", "Gunshot"
 };
 
+void extract_data(FILE* src, FILE* dst, int size)
+{
+#define MMMAX 4096
+    uint8_t data[MMMAX];
+    int read_max = MMMAX;
+
+    int left = size;
+    while(left)
+    {
+        if(read_max > left)
+            read_max = left;
+
+        int actual_read = fread(data, 1, read_max, src);
+
+        if(actual_read == 0)
+            break; // EOF
+
+        fwrite(data, actual_read, 1, dst);
+
+        left -= read_max;
+    }
+}
+
+int samples_to_nibbles(int samples)
+{
+    int whole_frames = samples / 14;
+    int remainder = samples % 14;
+
+    if(remainder > 0)
+        return (whole_frames * 16) + remainder + 2;
+    else
+        return whole_frames * 16;
+}
+
+int samples_to_bytes(int samples)
+{
+    int nibbles = samples_to_nibbles(samples);
+    return (nibbles / 2) + (nibbles % 2);
+}
+
 int main(int argc, const char* argv[])
 {
     FILE *proj, *pool, *sdir;
@@ -200,7 +289,7 @@ int main(int argc, const char* argv[])
     u16 tempID;
     u32 tempSize, tempOffset, nextOffset, poolSize;
 
-    if (argc < 4)
+    if (argc < 5)
         printf("Usage:\n%s inst.proj inst.pool inst.sdir inst.samp", argv[0]);
     else
     {
@@ -217,15 +306,23 @@ int main(int argc, const char* argv[])
         {
             dsps[i].id = ReadBE(sdir, 16);
             printf("Reading sample %X\n", dsps[i].id);
-            fseek(sdir, 2, SEEK_CUR);
+            ZERO_PADDING(16);
+            
             dsps[i].sampOffset = ReadBE(sdir, 32);
-            fseek(sdir, 4, SEEK_CUR);
+            
+            ZERO_PADDING(32);
+            
             dsps[i].baseNote = ReadBE(sdir, 8);
-            fseek(sdir, 1, SEEK_CUR);
+            ZERO_PADDING(8);
             dsps[i].sampleRate = ReadBE(sdir, 16);
-            dsps[i].sampleCount = ReadBE(sdir, 32);
+            
+            dsps[i].sampleFormat = ReadBE(sdir, 8);
+            dsps[i].sampleCount = ReadBE(sdir, 24);
+            
             dsps[i].loopStart = ReadBE(sdir, 32);
+            
             dsps[i].loopLength = ReadBE(sdir, 32);
+            
             if (dsps[i].loopLength > 0)
                 dsps[i].loopFlag = 1;
             else
@@ -233,7 +330,100 @@ int main(int argc, const char* argv[])
             dsps[i].infoOffset = ReadBE(sdir, 32);
         }
 
+        for (i = 0; i < dspCount; i++)
+        {
+            fseek(sdir, dsps[i].infoOffset, SEEK_SET);
+
+            // they are big endian, leave them big, since we dont need them
+
+            fread(&dsps[i].bytesPerFrame, 2,1, sdir);
+            fread(&dsps[i].ps, 1,1, sdir);
+            fread(&dsps[i].lps, 1,1, sdir);
+
+            // these four bytes must be the loop history, because they are always zero for non-looped samples, i.e. as it should be according to docs
+            // no sure about the order though (n-1 first? n-2 first?)
+            fread(&dsps[i].lyn2, 2,1, sdir);
+            fread(&dsps[i].lyn1, 2,1, sdir);
+
+            for(int j=0; j<16; j++)
+                fread(&dsps[i].adpcmCoeff[j], 2, 1, sdir);
+        }
+
         fclose(sdir);
+
+        // open samp file and write out dsp files
+        FILE* samp = fopen(argv[4], "rb");
+
+        for (i = 0; i < dspCount; i++)
+        {
+            fseek(sdir, dsps[i].sampOffset, SEEK_SET);
+
+            char dsp_path[50];
+            sprintf(dsp_path, "%05d (0x%04X).dsp", i, dsps[i].id);
+
+
+            FILE* dsp = fopen(dsp_path, "wb");
+// write standard dsp header
+
+            if (dsps[i].sampleCount > 0xDFFFFFFF)// 0xDFFFFFFF samples = 0xFFFFFFFF nibbles
+            {
+                printf("skipping dsp %d since it has too many samples", dsps[i].sampleCount);
+                continue;
+            }
+
+            int nibbles = samples_to_nibbles(dsps[i].sampleCount);
+
+            bool loop_flag;
+            int loop_start, loop_end;
+            if(dsps[i].loopFlag && dsps[i].loopStart + dsps[i].loopLength <= dsps[i].sampleCount)
+            {
+                loop_flag = 1;
+                loop_start = samples_to_nibbles(dsps[i].loopStart);
+                loop_end = samples_to_nibbles(dsps[i].loopStart + dsps[i].loopLength) - 1;
+            }
+            else
+            {
+                loop_flag = 0;
+                loop_start = 2;// # As per the DSPADPCM docs: "If not looping, specify 2, which is the top sample."
+                loop_end = 0;
+            }
+
+            int32_t temp;
+            fwrite(&(temp = bswap_32(dsps[i].sampleCount)), 4, 1, dsp);// 0x00 raw samples
+            fwrite(&(temp = bswap_32(nibbles)), 4, 1, dsp);        // 0x04 nibbles
+            fwrite(&(temp = bswap_32(dsps[i].sampleRate)), 4, 1, dsp);// 0x08 sample rate
+            fwrite(&(temp = bswap_16(loop_flag)), 2, 1, dsp);// 0x0C loop flag
+            fwrite(&(temp = bswap_16(0)), 2, 1, dsp); // 0x0E format (always zero - ADPCM)
+            fwrite(&(temp = bswap_32(loop_start)), 4, 1, dsp);  // 0x10 loop start address (in nibbles)
+            fwrite(&(temp = bswap_32(loop_end)), 4, 1, dsp);// 0x14 loop end address (in nibbles)
+            fwrite(&(temp = bswap_32(2)), 4, 1, dsp);   // 0x18 initial offset value (in nibbles)
+            fwrite(dsps[i].adpcmCoeff, sizeof(dsps[i].adpcmCoeff[0]), 16, dsp);  // 0x1C coefficients
+            fwrite(&(temp = bswap_16(0)), 2, 1, dsp);   // 0x3C gain (always zero for ADPCM)
+
+            fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x3E predictor/scale
+            fwrite(&dsps[i].ps, 1, 1, dsp);
+
+            fwrite(&dsps[i].yn1, 2, 1, dsp);// 0x40 sample history (not specified?)
+            fwrite(&dsps[i].yn2, 2, 1, dsp); // 0x42 sample history (not specified?)
+
+            fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x44 predictor/scale for loop context
+            fwrite(&dsps[i].lps, 1, 1, dsp);
+
+            fwrite(&dsps[i].lyn1, 2, 1, dsp);// 0x46 sample history (n-1) for loop context
+            fwrite(&dsps[i].lyn2, 2, 1, dsp); // 0x48 sample history (n-2) for loop context
+
+            for(int i=0; i<11; i++)
+                fwrite(&(temp = int8_t(0)), 2, 1, dsp); //0x4A pad (reserved)
+
+
+            int sample_size = samples_to_bytes(dsps[i].sampleCount);
+            extract_data(samp, dsp, sample_size);
+
+            fclose(dsp);
+        }
+
+        fclose(samp);
+
 
         // Reading pool
         pool = fopen(argv[2], "rb");
