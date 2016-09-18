@@ -48,11 +48,11 @@ static inline u32 ReadLE(FILE *f, u32 b)
 
 static inline void ZeroPadding(FILE*f, s32 b)
 {
-  s32 ret = ReadBE(f, b);
-  if(ret!=0)
-  {
-    printf ("Warning of offset %ld: Expected zero padding, got %d\n",ftell(f), ret);
-  }
+    s32 ret = ReadBE(f, b);
+    if(ret!=0)
+    {
+        printf ("Warning of offset %ld: Expected zero padding, got %d\n",ftell(f), ret);
+    }
 }
 
 typedef struct
@@ -302,725 +302,725 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
-        // Now getting sample info
-        FILE *sdir = fopen(argv[3], "rb");
-        vector<dsp> dsps;
-        fseek(sdir, 0, SEEK_END);
-        u32 sdirSize = ftell(sdir);
-        fseek(sdir, 0, SEEK_SET);
-        int dspCount = (sdirSize - 4) / (0x20 + 0x28);
-        dsps.resize(dspCount);
-        for (int i = 0; i < dspCount; i++)
-        {
-            dsps[i].id = ReadBE(sdir, 16);
-            printf("Reading sample %X\n", dsps[i].id);
-            ZeroPadding(sdir, 16);
+    // Now getting sample info
+    FILE *sdir = fopen(argv[3], "rb");
+    vector<dsp> dsps;
+    fseek(sdir, 0, SEEK_END);
+    u32 sdirSize = ftell(sdir);
+    fseek(sdir, 0, SEEK_SET);
+    int dspCount = (sdirSize - 4) / (0x20 + 0x28);
+    dsps.resize(dspCount);
+    for (int i = 0; i < dspCount; i++)
+    {
+        dsps[i].id = ReadBE(sdir, 16);
+        printf("Reading sample %X\n", dsps[i].id);
+        ZeroPadding(sdir, 16);
 
-            dsps[i].sampOffset = ReadBE(sdir, 32);
+        dsps[i].sampOffset = ReadBE(sdir, 32);
 
-            ZeroPadding(sdir, 32);
+        ZeroPadding(sdir, 32);
 
-            dsps[i].baseNote = ReadBE(sdir, 8);
-            ZeroPadding(sdir, 8); // this might be part of the samplerate, since it influences the pitch
-            dsps[i].sampleRate = ReadBE(sdir, 16);
+        dsps[i].baseNote = ReadBE(sdir, 8);
+        ZeroPadding(sdir, 8); // this might be part of the samplerate, since it influences the pitch
+        dsps[i].sampleRate = ReadBE(sdir, 16);
 
-            dsps[i].sampleFormat = ReadBE(sdir, 8);
-            dsps[i].sampleCount = ReadBE(sdir, 24);
+        dsps[i].sampleFormat = ReadBE(sdir, 8);
+        dsps[i].sampleCount = ReadBE(sdir, 24);
 
-            dsps[i].loopStart = ReadBE(sdir, 32);
+        dsps[i].loopStart = ReadBE(sdir, 32);
 
-            dsps[i].loopLength = ReadBE(sdir, 32);
+        dsps[i].loopLength = ReadBE(sdir, 32);
 
-            if (dsps[i].loopLength > 0)
-                dsps[i].loopFlag = 1;
-            else
-                dsps[i].loopFlag = 0;
-            dsps[i].infoOffset = ReadBE(sdir, 32);
-        }
+        if (dsps[i].loopLength > 0)
+            dsps[i].loopFlag = 1;
+        else
+            dsps[i].loopFlag = 0;
+        dsps[i].infoOffset = ReadBE(sdir, 32);
+    }
 
-        for (int i = 0; i < dspCount; i++)
-        {
-            fseek(sdir, dsps[i].infoOffset, SEEK_SET);
+    for (int i = 0; i < dspCount; i++)
+    {
+        fseek(sdir, dsps[i].infoOffset, SEEK_SET);
 
-            // they are big endian, leave them big, since we dont need them
+        // they are big endian, leave them big, since we dont need them
 
-            fread(&dsps[i].bytesPerFrame, 2,1, sdir); // is this of any use??
-            fread(&dsps[i].ps, 1,1, sdir);
-            fread(&dsps[i].lps, 1,1, sdir);
+        fread(&dsps[i].bytesPerFrame, 2,1, sdir); // is this of any use??
+        fread(&dsps[i].ps, 1,1, sdir);
+        fread(&dsps[i].lps, 1,1, sdir);
 
-            // these four bytes must be the loop history, because they are always zero for non-looped samples, i.e. as it should be according to docs
-            // no sure about the order though (n-1 first? n-2 first?)
-            fread(&dsps[i].lyn2, 2,1, sdir);
-            fread(&dsps[i].lyn1, 2,1, sdir);
+        // these four bytes must be the loop history, because they are always zero for non-looped samples, i.e. as it should be according to docs
+        // no sure about the order though (n-1 first? n-2 first?)
+        fread(&dsps[i].lyn2, 2,1, sdir);
+        fread(&dsps[i].lyn1, 2,1, sdir);
 
-            for(int j=0; j<16; j++)
-                fread(&dsps[i].adpcmCoeff[j], 2, 1, sdir);
-        }
+        for(int j=0; j<16; j++)
+            fread(&dsps[i].adpcmCoeff[j], 2, 1, sdir);
+    }
 
-        fclose(sdir);
+    fclose(sdir);
 
-        // open samp file and write out dsp files
-        FILE* samp = fopen(argv[4], "rb");
+    // open samp file and write out dsp files
+    FILE* samp = fopen(argv[4], "rb");
 
-        for (int i = 0; i < dspCount; i++)
-        {
-            fseek(sdir, dsps[i].sampOffset, SEEK_SET);
+    for (int i = 0; i < dspCount; i++)
+    {
+        fseek(sdir, dsps[i].sampOffset, SEEK_SET);
 
-            char dsp_path[50];
-            sprintf(dsp_path, "%05d (0x%04X).dsp", i, dsps[i].id);
+        char dsp_path[50];
+        sprintf(dsp_path, "%05d (0x%04X).dsp", i, dsps[i].id);
 
 
-            FILE* dsp = fopen(dsp_path, "wb");
+        FILE* dsp = fopen(dsp_path, "wb");
 // write standard dsp header
 
-            if (dsps[i].sampleCount > 0xDFFFFFFF)// 0xDFFFFFFF samples = 0xFFFFFFFF nibbles
-            {
-                printf("skipping dsp %d since it has too many samples", dsps[i].sampleCount);
-                continue;
-            }
-
-            int nibbles = samples_to_nibbles(dsps[i].sampleCount);
-
-            bool loop_flag;
-            int loop_start, loop_end;
-            if(dsps[i].loopFlag && dsps[i].loopStart + dsps[i].loopLength <= dsps[i].sampleCount)
-            {
-                loop_flag = 1;
-                loop_start = samples_to_nibbles(dsps[i].loopStart);
-                loop_end = samples_to_nibbles(dsps[i].loopStart + dsps[i].loopLength) - 1;
-            }
-            else
-            {
-                loop_flag = 0;
-                loop_start = 2;// # As per the DSPADPCM docs: "If not looping, specify 2, which is the top sample."
-                loop_end = 0;
-            }
-
-            int32_t temp;
-            fwrite(&(temp = bswap_32(dsps[i].sampleCount)), 4, 1, dsp);// 0x00 raw samples
-            fwrite(&(temp = bswap_32(nibbles)), 4, 1, dsp);        // 0x04 nibbles
-            fwrite(&(temp = bswap_32(dsps[i].sampleRate)), 4, 1, dsp);// 0x08 sample rate
-            fwrite(&(temp = bswap_16(loop_flag)), 2, 1, dsp);// 0x0C loop flag
-            fwrite(&(temp = bswap_16(0)), 2, 1, dsp); // 0x0E format (always zero - ADPCM)
-            fwrite(&(temp = bswap_32(loop_start)), 4, 1, dsp);  // 0x10 loop start address (in nibbles)
-            fwrite(&(temp = bswap_32(loop_end)), 4, 1, dsp);// 0x14 loop end address (in nibbles)
-            fwrite(&(temp = bswap_32(2)), 4, 1, dsp);   // 0x18 initial offset value (in nibbles)
-            fwrite(dsps[i].adpcmCoeff, sizeof(dsps[i].adpcmCoeff[0]), 16, dsp);  // 0x1C coefficients
-            fwrite(&(temp = bswap_16(0)), 2, 1, dsp);   // 0x3C gain (always zero for ADPCM)
-
-            fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x3E predictor/scale
-            fwrite(&dsps[i].ps, 1, 1, dsp);
-
-            fwrite(&dsps[i].yn1, 2, 1, dsp);// 0x40 sample history (not specified?)
-            fwrite(&dsps[i].yn2, 2, 1, dsp); // 0x42 sample history (not specified?)
-
-            fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x44 predictor/scale for loop context
-            fwrite(&dsps[i].lps, 1, 1, dsp);
-
-            fwrite(&dsps[i].lyn1, 2, 1, dsp);// 0x46 sample history (n-1) for loop context
-            fwrite(&dsps[i].lyn2, 2, 1, dsp); // 0x48 sample history (n-2) for loop context
-
-            for(int i=0; i<11; i++)
-                fwrite(&(temp = int8_t(0)), 2, 1, dsp); //0x4A pad (reserved)
-
-
-            int sample_size = samples_to_bytes(dsps[i].sampleCount);
-            extract_data(samp, dsp, sample_size);
-
-            fclose(dsp);
+        if (dsps[i].sampleCount > 0xDFFFFFFF)// 0xDFFFFFFF samples = 0xFFFFFFFF nibbles
+        {
+            printf("skipping dsp %d since it has too many samples", dsps[i].sampleCount);
+            continue;
         }
 
-        fclose(samp);
+        int nibbles = samples_to_nibbles(dsps[i].sampleCount);
 
-
-        // Reading pool
-        FILE *pool = fopen(argv[2], "rb");
-        fseek(pool, 0, SEEK_END);
-        u32 poolSize = ftell(pool);
-        fseek(pool, 0, SEEK_SET);
-        u32 macroOffset = ReadBE(pool, 32);
-        u32 adsrOffset = ReadBE(pool, 32);
-        u32 keymapOffset = ReadBE(pool, 32);
-        u32 layerOffset = ReadBE(pool, 32);
-
-        // Checking ADSR first
-        printf("Checking ADSR tables\n");
-        fseek(pool, adsrOffset, SEEK_SET);
-        nextOffset = tempOffset = ftell(pool);
-        vector<table> tables;
-        int tableCount = 0;
-        while (ftell(pool) < keymapOffset - 4)
+        bool loop_flag;
+        int loop_start, loop_end;
+        if(dsps[i].loopFlag && dsps[i].loopStart + dsps[i].loopLength <= dsps[i].sampleCount)
         {
-            tempSize = ReadBE(pool, 32);
-            nextOffset += tempSize;
+            loop_flag = 1;
+            loop_start = samples_to_nibbles(dsps[i].loopStart);
+            loop_end = samples_to_nibbles(dsps[i].loopStart + dsps[i].loopLength) - 1;
+        }
+        else
+        {
+            loop_flag = 0;
+            loop_start = 2;// # As per the DSPADPCM docs: "If not looping, specify 2, which is the top sample."
+            loop_end = 0;
+        }
+
+        int32_t temp;
+        fwrite(&(temp = bswap_32(dsps[i].sampleCount)), 4, 1, dsp);// 0x00 raw samples
+        fwrite(&(temp = bswap_32(nibbles)), 4, 1, dsp);        // 0x04 nibbles
+        fwrite(&(temp = bswap_32(dsps[i].sampleRate)), 4, 1, dsp);// 0x08 sample rate
+        fwrite(&(temp = bswap_16(loop_flag)), 2, 1, dsp);// 0x0C loop flag
+        fwrite(&(temp = bswap_16(0)), 2, 1, dsp); // 0x0E format (always zero - ADPCM)
+        fwrite(&(temp = bswap_32(loop_start)), 4, 1, dsp);  // 0x10 loop start address (in nibbles)
+        fwrite(&(temp = bswap_32(loop_end)), 4, 1, dsp);// 0x14 loop end address (in nibbles)
+        fwrite(&(temp = bswap_32(2)), 4, 1, dsp);   // 0x18 initial offset value (in nibbles)
+        fwrite(dsps[i].adpcmCoeff, sizeof(dsps[i].adpcmCoeff[0]), 16, dsp);  // 0x1C coefficients
+        fwrite(&(temp = bswap_16(0)), 2, 1, dsp);   // 0x3C gain (always zero for ADPCM)
+
+        fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x3E predictor/scale
+        fwrite(&dsps[i].ps, 1, 1, dsp);
+
+        fwrite(&dsps[i].yn1, 2, 1, dsp);// 0x40 sample history (not specified?)
+        fwrite(&dsps[i].yn2, 2, 1, dsp); // 0x42 sample history (not specified?)
+
+        fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x44 predictor/scale for loop context
+        fwrite(&dsps[i].lps, 1, 1, dsp);
+
+        fwrite(&dsps[i].lyn1, 2, 1, dsp);// 0x46 sample history (n-1) for loop context
+        fwrite(&dsps[i].lyn2, 2, 1, dsp); // 0x48 sample history (n-2) for loop context
+
+        for(int i=0; i<11; i++)
+            fwrite(&(temp = int8_t(0)), 2, 1, dsp); //0x4A pad (reserved)
+
+
+        int sample_size = samples_to_bytes(dsps[i].sampleCount);
+        extract_data(samp, dsp, sample_size);
+
+        fclose(dsp);
+    }
+
+    fclose(samp);
+
+
+    // Reading pool
+    FILE *pool = fopen(argv[2], "rb");
+    fseek(pool, 0, SEEK_END);
+    u32 poolSize = ftell(pool);
+    fseek(pool, 0, SEEK_SET);
+    u32 macroOffset = ReadBE(pool, 32);
+    u32 adsrOffset = ReadBE(pool, 32);
+    u32 keymapOffset = ReadBE(pool, 32);
+    u32 layerOffset = ReadBE(pool, 32);
+
+    // Checking ADSR first
+    printf("Checking ADSR tables\n");
+    fseek(pool, adsrOffset, SEEK_SET);
+    nextOffset = tempOffset = ftell(pool);
+    vector<table> tables;
+    int tableCount = 0;
+    while (ftell(pool) < keymapOffset - 4)
+    {
+        tempSize = ReadBE(pool, 32);
+        nextOffset += tempSize;
 //			if (tempSize == 0x10) {	// Only know how to read these tables so far
-            tempID = ReadBE(pool, 16);
-            if (tempID != 0xffff)
+        tempID = ReadBE(pool, 16);
+        if (tempID != 0xffff)
+        {
+            tableCount++;
+            printf("Table %X:\n", tempID);
+            tables.resize(tableCount);
+            tables[tableCount - 1].size = tempSize;
+            tables[tableCount - 1].id = tempID;
+            fseek(pool, 2, SEEK_CUR);
+            if (tempSize == 0x1c)
             {
-                tableCount++;
-                printf("Table %X:\n", tempID);
-                tables.resize(tableCount);
-                tables[tableCount - 1].size = tempSize;
-                tables[tableCount - 1].id = tempID;
-                fseek(pool, 2, SEEK_CUR);
-                if (tempSize == 0x1c)
-                {
-                    // skipping attack and decay for now
+                // skipping attack and decay for now
 //						fseek(pool, 8, SEEK_CUR);
-                    fseek(pool, 2, SEEK_CUR);
+                fseek(pool, 2, SEEK_CUR);
 
-                    tables[tableCount - 1].attackTimecents = ReadLE(pool, 16);
-                    fseek(pool, 2, SEEK_CUR);
-                    tables[tableCount - 1].decayTimecents = ReadLE(pool, 16);
-                    tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
-                    tables[tableCount - 1].releaseTime = (double)ReadLE(pool, 16) / 1000;
-                    printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %.03f seconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseTime);
-                    fseek(pool, nextOffset, SEEK_SET);
-                }
-                else
-                {
-
-                    tables[tableCount - 1].attackTimecents = ReadLE(pool, 16);
-                    tables[tableCount - 1].decayTimecents = ReadLE(pool, 16);
-                    tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
-                    tables[tableCount - 1].releaseTime = (double)ReadLE(pool, 16) / 1000;
-                    printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %.03f seconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseTime);
-
-                    /*
-                    tables[tableCount - 1].attack = ReadBE(pool, 8);
-                    tables[tableCount - 1].attackDecimal = ReadBE(pool, 8);
-                    tables[tableCount - 1].decay = ReadBE(pool, 8);
-                    tables[tableCount - 1].decayDecimal = ReadBE(pool, 8);
-                    tables[tableCount - 1].sustain = ReadBE(pool, 8);
-                    tables[tableCount - 1].sustainDecimal = ReadBE(pool, 8);
-                    tables[tableCount - 1].release = ReadBE(pool, 8);
-                    tables[tableCount - 1].releaseDecimal = ReadBE(pool, 8);
-                    */
-                    fseek(pool, nextOffset, SEEK_SET);
-                }
+                tables[tableCount - 1].attackTimecents = ReadLE(pool, 16);
+                fseek(pool, 2, SEEK_CUR);
+                tables[tableCount - 1].decayTimecents = ReadLE(pool, 16);
+                tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
+                tables[tableCount - 1].releaseTime = (double)ReadLE(pool, 16) / 1000;
+                printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %.03f seconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseTime);
+                fseek(pool, nextOffset, SEEK_SET);
             }
             else
+            {
+
+                tables[tableCount - 1].attackTimecents = ReadLE(pool, 16);
+                tables[tableCount - 1].decayTimecents = ReadLE(pool, 16);
+                tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
+                tables[tableCount - 1].releaseTime = (double)ReadLE(pool, 16) / 1000;
+                printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %.03f seconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseTime);
+
+                /*
+                tables[tableCount - 1].attack = ReadBE(pool, 8);
+                tables[tableCount - 1].attackDecimal = ReadBE(pool, 8);
+                tables[tableCount - 1].decay = ReadBE(pool, 8);
+                tables[tableCount - 1].decayDecimal = ReadBE(pool, 8);
+                tables[tableCount - 1].sustain = ReadBE(pool, 8);
+                tables[tableCount - 1].sustainDecimal = ReadBE(pool, 8);
+                tables[tableCount - 1].release = ReadBE(pool, 8);
+                tables[tableCount - 1].releaseDecimal = ReadBE(pool, 8);
+                */
                 fseek(pool, nextOffset, SEEK_SET);
+            }
+        }
+        else
+            fseek(pool, nextOffset, SEEK_SET);
 //			}
 //			else
 //				fseek(pool, nextOffset, SEEK_SET);
-        }
+    }
 
 
-        // Should be at macro offset, but let's seek to be sure
-        fseek(pool, macroOffset, SEEK_SET);
-        nextOffset = tempOffset = ftell(pool);
-        vector<macro> macros;
-        int macroCount = 0;
-        while (ftell(pool) < adsrOffset)
+    // Should be at macro offset, but let's seek to be sure
+    fseek(pool, macroOffset, SEEK_SET);
+    nextOffset = tempOffset = ftell(pool);
+    vector<macro> macros;
+    int macroCount = 0;
+    while (ftell(pool) < adsrOffset)
+    {
+        tempSize = ReadBE(pool, 32);
+        nextOffset += tempSize;
+        tempID = ReadBE(pool, 16);
+        if (tempID != 0xffff)
         {
-            tempSize = ReadBE(pool, 32);
+            macroCount++;
+            macros.resize(macroCount);
+            macros[macroCount - 1].id = tempID;
+
+            fseek(pool, 2, SEEK_CUR);
+            tempOffset = ftell(pool);
+            // Looking for sample info
+            while (ftell(pool) < nextOffset)
+            {
+                fseek(pool, 3, SEEK_CUR);
+                tempChar = ReadBE(pool, 8);
+                if (tempChar == 0x10)
+                {
+                    fseek(pool, -3, SEEK_CUR);
+                    macros[macroCount - 1].sampleID = ReadBE(pool, 16);
+                    for (int i = 0; i < dspCount; i++)
+                    {
+                        if (dsps[i].id == macros[macroCount - 1].sampleID)
+                        {
+                            macros[macroCount - 1].rootKey = dsps[i].baseNote;
+                            macros[macroCount - 1].loopFlag = dsps[i].loopFlag;
+                        }
+                    }
+                    printf("Macro %X uses sample # %X\n", macros[macroCount - 1].id, macros[macroCount - 1].sampleID);
+                    fseek(pool, 5, SEEK_CUR);
+                }
+                else if (tempChar == 0xc)
+                {
+                    fseek(pool, -3, SEEK_CUR);
+                    macros[macroCount - 1].adsrID = ReadBE(pool, 16);
+                    for (int i = 0; i < tableCount; i++)
+                    {
+                        if (tables[i].id == macros[macroCount - 1].adsrID)
+                        {
+                            macros[macroCount - 1].adsrIndex = i;
+                        }
+                    }
+                    fseek(pool, 5, SEEK_CUR);
+                }
+                else
+                    fseek(pool, 4, SEEK_CUR);
+            }
+        }
+        else
+            fseek(pool, nextOffset, SEEK_CUR);
+
+    }
+
+    // Checking layers
+    printf("Checking instrument layers\n");
+    fseek(pool, layerOffset, SEEK_SET);
+    nextOffset = tempOffset = ftell(pool);
+    int layerCount = 0;
+    while (ftell(pool) < poolSize - 12)
+    {
+        tempSize = ReadBE(pool, 32);
+        if (tempSize != 0xffffffff)
+        {
+            layerCount++;
+            layers.resize(layerCount);
             nextOffset += tempSize;
             tempID = ReadBE(pool, 16);
-            if (tempID != 0xffff)
-            {
-                macroCount++;
-                macros.resize(macroCount);
-                macros[macroCount - 1].id = tempID;
-
-                fseek(pool, 2, SEEK_CUR);
-                tempOffset = ftell(pool);
-                // Looking for sample info
-                while (ftell(pool) < nextOffset)
-                {
-                    fseek(pool, 3, SEEK_CUR);
-                    tempChar = ReadBE(pool, 8);
-                    if (tempChar == 0x10)
-                    {
-                        fseek(pool, -3, SEEK_CUR);
-                        macros[macroCount - 1].sampleID = ReadBE(pool, 16);
-                        for (int i = 0; i < dspCount; i++)
-                        {
-                            if (dsps[i].id == macros[macroCount - 1].sampleID)
-                            {
-                                macros[macroCount - 1].rootKey = dsps[i].baseNote;
-                                macros[macroCount - 1].loopFlag = dsps[i].loopFlag;
-                            }
-                        }
-                        printf("Macro %X uses sample # %X\n", macros[macroCount - 1].id, macros[macroCount - 1].sampleID);
-                        fseek(pool, 5, SEEK_CUR);
-                    }
-                    else if (tempChar == 0xc)
-                    {
-                        fseek(pool, -3, SEEK_CUR);
-                        macros[macroCount - 1].adsrID = ReadBE(pool, 16);
-                        for (int i = 0; i < tableCount; i++)
-                        {
-                            if (tables[i].id == macros[macroCount - 1].adsrID)
-                            {
-                                macros[macroCount - 1].adsrIndex = i;
-                            }
-                        }
-                        fseek(pool, 5, SEEK_CUR);
-                    }
-                    else
-                        fseek(pool, 4, SEEK_CUR);
-                }
-            }
-            else
-                fseek(pool, nextOffset, SEEK_CUR);
-
-        }
-
-        // Checking layers
-        printf("Checking instrument layers\n");
-        fseek(pool, layerOffset, SEEK_SET);
-        nextOffset = tempOffset = ftell(pool);
-        int layerCount = 0;
-        while (ftell(pool) < poolSize - 12)
-        {
-            tempSize = ReadBE(pool, 32);
-            if (tempSize != 0xffffffff)
-            {
-                layerCount++;
-                layers.resize(layerCount);
-                nextOffset += tempSize;
-                tempID = ReadBE(pool, 16);
-                fseek(pool, 2, SEEK_CUR);
-                layers[layerCount - 1].id = tempID;
-
-                layers[layerCount - 1].noteCount = ReadBE(pool, 32);
-                layers[layerCount - 1].notes.resize(layers[layerCount - 1].noteCount);
-                printf("Layer %X at 0x%X with %d note regions\n", layers[layerCount - 1].id, ftell(pool), layers[layerCount - 1].noteCount);
-                for (unsigned int j = 0; j < layers[layerCount - 1].noteCount; j++)
-                {
-                    tempID = ReadBE(pool, 16);
-                    if (tempID == 0xffff)
-                    {
-                        fseek(pool, 10, SEEK_CUR);
-                        layers[layerCount - 1].notes[j].exists = false;
-                    }
-                    else
-                    {
-
-                        for (int k = 0; k < macroCount; k++)
-                        {
-                            if (macros[k].id == tempID)
-                            {
-                                printf("\tNote region %d uses macro %X\n", j, macros[k].id);
-                                layers[layerCount - 1].notes[j].sampleID = macros[k].sampleID;
-                                layers[layerCount - 1].notes[j].baseNote = macros[k].rootKey;
-                                layers[layerCount - 1].notes[j].loopFlag = macros[k].loopFlag;
-                                layers[layerCount - 1].notes[j].exists = true;
-                                layers[layerCount - 1].notes[j].startNote = ReadBE(pool, 8);
-                                layers[layerCount - 1].notes[j].endNote = ReadBE(pool, 8);
-                                layers[layerCount - 1].notes[j].transpose = ReadBE(pool, 8);
-                                layers[layerCount - 1].notes[j].volume = ReadBE(pool, 8);
-                                fseek(pool, 2, SEEK_CUR);
-                                layers[layerCount - 1].notes[j].pan = ReadBE(pool, 8);
-                                fseek(pool, 3, SEEK_CUR);
-                                if (macros[k].adsrIndex != 0)
-                                {
-                                    layers[layerCount - 1].notes[j].adsr = true;
-                                    layers[layerCount - 1].notes[j].attack = tables[macros[j].adsrIndex].attackTimecents;
-                                    layers[layerCount - 1].notes[j].decay = tables[macros[j].adsrIndex].decayTimecents;
-                                    layers[layerCount - 1].notes[j].sustain = tables[macros[j].adsrIndex].sustaindB * 10;
-                                    layers[layerCount - 1].notes[j].release = timeToTimecents(tables[macros[j].adsrIndex].releaseTime);
-                                    /*
-                                    layers[layerCount - 1].notes[j].attack = (float)(tables[macros[j].adsrIndex].attack / 1e3) + (float)(tables[macros[j].adsrIndex].attackDecimal * 256 / 1e6);
-                                    layers[layerCount - 1].notes[j].decay = (float)(tables[macros[j].adsrIndex].decay / 1e3) + (float)(tables[macros[j].adsrIndex].decayDecimal * 256 / 1e6);
-                                    layers[layerCount - 1].notes[j].sustain = (float)(tables[macros[k].adsrIndex].sustain) * 0.0244 + (float)(tables[macros[k].adsrIndex].sustainDecimal * 6.25);
-                                    layers[layerCount - 1].notes[j].release = (float)(tables[macros[j].adsrIndex].release / 1e3) + (float)(tables[macros[j].adsrIndex].releaseDecimal * 256 / 1e6);
-                                    */
-                                }
-                                break;
-                            }
-                            //						else
-                            //							fseek(pool, 10, SEEK_CUR);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Checking drum tables
-        printf("Checking keymaps\n");
-        fseek(pool, keymapOffset, SEEK_SET);
-        int keymapCount = (layerOffset - keymapOffset - 4) / 0x408;
-        layerCount += keymapCount;
-        layers.resize(layerCount);
-        for (int i = layerCount - keymapCount; i < layerCount; i++)
-        {
-            printf("Reading keymap at 0x%X\n", ftell(pool));
-            fseek(pool, 4, SEEK_CUR);
-            tempID = ReadBE(pool, 16);
             fseek(pool, 2, SEEK_CUR);
-            layers[i].id = tempID;
-            layers[i].noteCount = 128;
-            layers[i].notes.resize(128);
+            layers[layerCount - 1].id = tempID;
 
-            // Now to try and map all note regions
-            for (int j = 0; j < 128; j++)
+            layers[layerCount - 1].noteCount = ReadBE(pool, 32);
+            layers[layerCount - 1].notes.resize(layers[layerCount - 1].noteCount);
+            printf("Layer %X at 0x%X with %d note regions\n", layers[layerCount - 1].id, ftell(pool), layers[layerCount - 1].noteCount);
+            for (unsigned int j = 0; j < layers[layerCount - 1].noteCount; j++)
             {
-                layers[i].notes[j].exists = false;
-//				printf("Reading Keymap %d: Note Region %d\n", curInstrument, j);
                 tempID = ReadBE(pool, 16);
                 if (tempID == 0xffff)
                 {
-                    fseek(pool, 6, SEEK_CUR);
-                }
-                else if (tempID & 0x8000)  	// Maps to layer, rather than macro
-                {
-                    for (int k = 0; k < layerCount - 1; k++)  	// Reading all layers prior to this one
-                    {
-                        if (layers[k].id == tempID)
-                        {
-                            printf("Keymap %X note %d uses layer %X\n", layers[i].id, j, layers[k].id);
-                            layers[i].noteCount += layers[k].noteCount - 1;
-                            layers[i].notes.resize(layers[i].noteCount);
-                            layers[i].notes[j] = layers[k].notes[0];	// Only taking the first region for now
-                            layers[i].notes[j].transpose = ReadBE(pool, 8);
-                            layers[i].notes[j].pan = ReadBE(pool, 8);
-                            layers[i].notes[j].exists = true;
-                            for (unsigned int n = 1; n < layers[k].noteCount; n++)
-                            {
-                                layers[i].notes[layers[i].noteCount - n] = layers[k].notes[n];
-                                layers[i].notes[layers[i].noteCount - n].transpose = layers[i].notes[j].transpose;
-                                layers[i].notes[layers[i].noteCount - n].pan = layers[i].notes[j].pan;
-                                layers[i].notes[layers[i].noteCount - n].exists = true;
-                                layers[i].notes[layers[i].noteCount - n].startNote = j;
-                                layers[i].notes[layers[i].noteCount - n].endNote = j;
-                            }
-                            fseek(pool, 4, SEEK_CUR);
-                            break;
-                        }
-                    }
-
+                    fseek(pool, 10, SEEK_CUR);
+                    layers[layerCount - 1].notes[j].exists = false;
                 }
                 else
                 {
+
                     for (int k = 0; k < macroCount; k++)
                     {
                         if (macros[k].id == tempID)
                         {
-                            printf("Keymap %X note %d uses macro %X\n", layers[i].id, j, macros[k].id);
-                            layers[i].notes[j].sampleID = macros[k].sampleID;
-                            layers[i].notes[j].baseNote = macros[k].rootKey;
-                            layers[i].notes[j].loopFlag = macros[k].loopFlag;
+                            printf("\tNote region %d uses macro %X\n", j, macros[k].id);
+                            layers[layerCount - 1].notes[j].sampleID = macros[k].sampleID;
+                            layers[layerCount - 1].notes[j].baseNote = macros[k].rootKey;
+                            layers[layerCount - 1].notes[j].loopFlag = macros[k].loopFlag;
+                            layers[layerCount - 1].notes[j].exists = true;
+                            layers[layerCount - 1].notes[j].startNote = ReadBE(pool, 8);
+                            layers[layerCount - 1].notes[j].endNote = ReadBE(pool, 8);
+                            layers[layerCount - 1].notes[j].transpose = ReadBE(pool, 8);
+                            layers[layerCount - 1].notes[j].volume = ReadBE(pool, 8);
+                            fseek(pool, 2, SEEK_CUR);
+                            layers[layerCount - 1].notes[j].pan = ReadBE(pool, 8);
+                            fseek(pool, 3, SEEK_CUR);
                             if (macros[k].adsrIndex != 0)
                             {
-                                layers[i].notes[j].adsr = true;
-                                layers[i].notes[j].attack = tables[macros[j].adsrIndex].attackTimecents;
-                                layers[i].notes[j].decay = tables[macros[j].adsrIndex].decayTimecents;
-                                layers[i].notes[j].sustain = tables[macros[j].adsrIndex].sustaindB * 10;
-                                layers[i].notes[j].release = timeToTimecents(tables[macros[j].adsrIndex].releaseTime);
-
+                                layers[layerCount - 1].notes[j].adsr = true;
+                                layers[layerCount - 1].notes[j].attack = tables[macros[j].adsrIndex].attackTimecents;
+                                layers[layerCount - 1].notes[j].decay = tables[macros[j].adsrIndex].decayTimecents;
+                                layers[layerCount - 1].notes[j].sustain = tables[macros[j].adsrIndex].sustaindB * 10;
+                                layers[layerCount - 1].notes[j].release = timeToTimecents(tables[macros[j].adsrIndex].releaseTime);
                                 /*
-                                layers[i].notes[j].attack = (float)(tables[macros[j].adsrIndex].attack / 1e3) + (float)(tables[macros[j].adsrIndex].attackDecimal * 256 / 1e6);
-                                layers[i].notes[j].decay = (float)(tables[macros[j].adsrIndex].decay / 1e3) + (float)(tables[macros[j].adsrIndex].decayDecimal * 256 / 1e6);
-                                layers[i].notes[j].sustain = (float)(tables[macros[k].adsrIndex].sustain) * 0.0244 + (float)(tables[macros[k].adsrIndex].sustainDecimal * 6.25);
-                                layers[i].notes[j].release = (float)(tables[macros[j].adsrIndex].release / 1e3) + (float)(tables[macros[j].adsrIndex].releaseDecimal * 256 / 1e6);
+                                layers[layerCount - 1].notes[j].attack = (float)(tables[macros[j].adsrIndex].attack / 1e3) + (float)(tables[macros[j].adsrIndex].attackDecimal * 256 / 1e6);
+                                layers[layerCount - 1].notes[j].decay = (float)(tables[macros[j].adsrIndex].decay / 1e3) + (float)(tables[macros[j].adsrIndex].decayDecimal * 256 / 1e6);
+                                layers[layerCount - 1].notes[j].sustain = (float)(tables[macros[k].adsrIndex].sustain) * 0.0244 + (float)(tables[macros[k].adsrIndex].sustainDecimal * 6.25);
+                                layers[layerCount - 1].notes[j].release = (float)(tables[macros[j].adsrIndex].release / 1e3) + (float)(tables[macros[j].adsrIndex].releaseDecimal * 256 / 1e6);
                                 */
                             }
-                            layers[i].notes[j].exists = true;
-                            layers[i].notes[j].transpose = ReadBE(pool, 8);
-                            layers[i].notes[j].pan = ReadBE(pool, 8);
-                            fseek(pool, 4, SEEK_CUR);
                             break;
                         }
+                        //						else
+                        //							fseek(pool, 10, SEEK_CUR);
                     }
                 }
-                layers[i].notes[j].startNote = j;
-                layers[i].notes[j].endNote = j;
             }
         }
+    }
 
+    // Checking drum tables
+    printf("Checking keymaps\n");
+    fseek(pool, keymapOffset, SEEK_SET);
+    int keymapCount = (layerOffset - keymapOffset - 4) / 0x408;
+    layerCount += keymapCount;
+    layers.resize(layerCount);
+    for (int i = layerCount - keymapCount; i < layerCount; i++)
+    {
+        printf("Reading keymap at 0x%X\n", ftell(pool));
+        fseek(pool, 4, SEEK_CUR);
+        tempID = ReadBE(pool, 16);
+        fseek(pool, 2, SEEK_CUR);
+        layers[i].id = tempID;
+        layers[i].noteCount = 128;
+        layers[i].notes.resize(128);
 
-        // Getting our instrument info from proj
-        FILE *proj = fopen(argv[1], "rb");
-        fseek(proj, 0x1c, SEEK_SET);
-        u32 projInstOffset = ReadBE(proj, 32);
-        u32 projDrumOffset = ReadBE(proj, 32);
-        u32 projFinalOffset = ReadBE(proj, 32);
-        int instCount = (projDrumOffset - projInstOffset) / 6;
-        int drumCount = (projFinalOffset - projDrumOffset) / 6;
-        fseek(proj, projInstOffset, SEEK_SET);
-
-        for (unsigned short i = 0; i < 128; i++)
+        // Now to try and map all note regions
+        for (int j = 0; j < 128; j++)
         {
-            instruments[i].exists = false;
-            instruments[i].noteCount = 0;
-            instruments[i].notes.resize(1);
-            instruments[i].notes[0].sampleID == 0;
-            drums[i].exists = false;
-            drums[i].noteCount = 0;
-            drums[i].notes.resize(1);
-            drums[i].notes[0].sampleID == 0;
-        }
-        for (int i = 0; i < instCount; i++)
-        {
-            fseek(proj, projInstOffset + i * 6, SEEK_SET);
-            tempID = ReadBE(proj, 16);
+            layers[i].notes[j].exists = false;
+//				printf("Reading Keymap %d: Note Region %d\n", curInstrument, j);
+            tempID = ReadBE(pool, 16);
             if (tempID == 0xffff)
-                continue;
-            else if (tempID & 0x8000)  	// Normal layer section
             {
-                fseek(proj, 2, SEEK_CUR);
-                tempChar = ReadBE(proj, 8);
-
-                for (int j = 0; j < layerCount; j++)
+                fseek(pool, 6, SEEK_CUR);
+            }
+            else if (tempID & 0x8000)  	// Maps to layer, rather than macro
+            {
+                for (int k = 0; k < layerCount - 1; k++)  	// Reading all layers prior to this one
                 {
-                    if (layers[j].id == tempID)
+                    if (layers[k].id == tempID)
                     {
-                        instruments[(int)tempChar] = layers[j];
+                        printf("Keymap %X note %d uses layer %X\n", layers[i].id, j, layers[k].id);
+                        layers[i].noteCount += layers[k].noteCount - 1;
+                        layers[i].notes.resize(layers[i].noteCount);
+                        layers[i].notes[j] = layers[k].notes[0];	// Only taking the first region for now
+                        layers[i].notes[j].transpose = ReadBE(pool, 8);
+                        layers[i].notes[j].pan = ReadBE(pool, 8);
+                        layers[i].notes[j].exists = true;
+                        for (unsigned int n = 1; n < layers[k].noteCount; n++)
+                        {
+                            layers[i].notes[layers[i].noteCount - n] = layers[k].notes[n];
+                            layers[i].notes[layers[i].noteCount - n].transpose = layers[i].notes[j].transpose;
+                            layers[i].notes[layers[i].noteCount - n].pan = layers[i].notes[j].pan;
+                            layers[i].notes[layers[i].noteCount - n].exists = true;
+                            layers[i].notes[layers[i].noteCount - n].startNote = j;
+                            layers[i].notes[layers[i].noteCount - n].endNote = j;
+                        }
+                        fseek(pool, 4, SEEK_CUR);
                         break;
                     }
                 }
-                instruments[(int)tempChar].exists = true;
-//				printf("Instrument %d exists\n", tempChar);
-                printf("%s exists\n", general_MIDI_instr_names[tempChar]);
-            }
 
-            else if (tempID & 0x4000)  	// Keymap section
-            {
-                fseek(proj, 2, SEEK_CUR);
-                tempChar = ReadBE(proj, 8);
-
-
-                for (int j = 0; j < layerCount; j++)
-                {
-                    if (layers[j].id == tempID)
-                    {
-                        instruments[(int)tempChar] = layers[j];
-                        break;
-                    }
-                }
-                instruments[(int)tempChar].exists = true;
-//				printf("Instrument %d exists as a keymap\n", tempChar);
-                printf("%s exists as a keymap\n", general_MIDI_instr_names[tempChar]);
-            }
-
-            else  	// Instrument just has info at macro
-            {
-                fseek(proj, 2, SEEK_CUR);
-                tempChar = ReadBE(proj, 8);
-                instruments[(int)tempChar].exists = true;
-
-                instruments[(int)tempChar].id = tempID;
-                instruments[(int)tempChar].notes.resize(1);
-                instruments[(int)tempChar].notes[0].startNote = 0;
-                instruments[(int)tempChar].notes[0].endNote = 127;
-//				printf("Instrument %d exists as a single macro\n", tempChar);
-                printf("%s exists as a single macro\n", general_MIDI_instr_names[tempChar]);
-            }
-        }
-
-        fseek(proj, projDrumOffset, SEEK_SET);
-        for (int i = 0; i < drumCount; i++)
-        {
-            fseek(proj, projDrumOffset + i * 6, SEEK_SET);
-            tempID = ReadBE(proj, 16);
-            if (tempID == 0xffff)
-            {
-                continue;
             }
             else
             {
-                fseek(proj, 2, SEEK_CUR);
-                tempChar = ReadBE(proj, 8);
-
-                for (int j = 0; j < layerCount; j++)
+                for (int k = 0; k < macroCount; k++)
                 {
-                    if (layers[j].id == tempID)
+                    if (macros[k].id == tempID)
                     {
-                        drums[(int)tempChar] = layers[j];
-                        break;
-                    }
-                }
-                drums[(int)tempChar].exists = true;
-                printf("Drumkit %d exists\n", tempChar);
-            }
-        }
-        fclose(proj);
-
-        printf("Taking care of instruments with only macros\n");
-        for (unsigned short i = 0; i < 128; i++)
-        {
-            if (instruments[i].exists && instruments[i].notes[0].sampleID == 0)
-            {
-                printf("Looking for instrument %d macro\n", i);
-                for (int j = 0; j < macroCount; j++)
-                {
-                    if (macros[j].id == instruments[i].id)
-                    {
-                        printf("\tMacro %X\n", macros[j].id);
-                        instruments[i].notes[0].sampleID = macros[j].sampleID;
-                        instruments[i].notes[0].baseNote = macros[j].rootKey;
-
-                        if (macros[j].adsrIndex != 0)
+                        printf("Keymap %X note %d uses macro %X\n", layers[i].id, j, macros[k].id);
+                        layers[i].notes[j].sampleID = macros[k].sampleID;
+                        layers[i].notes[j].baseNote = macros[k].rootKey;
+                        layers[i].notes[j].loopFlag = macros[k].loopFlag;
+                        if (macros[k].adsrIndex != 0)
                         {
-                            instruments[i].notes[0].adsr = true;
-                            instruments[i].notes[0].attack = tables[macros[j].adsrIndex].attackTimecents;
-                            instruments[i].notes[0].decay = tables[macros[j].adsrIndex].decayTimecents;
-                            instruments[i].notes[0].sustain = tables[macros[j].adsrIndex].sustaindB * 10;
-                            instruments[i].notes[0].release = timeToTimecents(tables[macros[j].adsrIndex].releaseTime);
+                            layers[i].notes[j].adsr = true;
+                            layers[i].notes[j].attack = tables[macros[j].adsrIndex].attackTimecents;
+                            layers[i].notes[j].decay = tables[macros[j].adsrIndex].decayTimecents;
+                            layers[i].notes[j].sustain = tables[macros[j].adsrIndex].sustaindB * 10;
+                            layers[i].notes[j].release = timeToTimecents(tables[macros[j].adsrIndex].releaseTime);
+
                             /*
-                            instruments[i].notes[0].attack = (float)(tables[macros[j].adsrIndex].attack / 1e3) + (float)(tables[macros[j].adsrIndex].attackDecimal * 256 / 1e6);
-                            instruments[i].notes[0].decay = (float)(tables[macros[j].adsrIndex].decay / 1e3) + (float)(tables[macros[j].adsrIndex].decayDecimal * 256 / 1e6);
-                            instruments[i].notes[0].sustain = (float)(tables[macros[k].adsrIndex].sustain) * 0.0244 + (float)(tables[macros[k].adsrIndex].sustainDecimal * 6.25);
-                            instruments[i].notes[0].release = (float)(tables[macros[j].adsrIndex].release / 1e3) + (float)(tables[macros[j].adsrIndex].releaseDecimal * 256 / 1e6);
+                            layers[i].notes[j].attack = (float)(tables[macros[j].adsrIndex].attack / 1e3) + (float)(tables[macros[j].adsrIndex].attackDecimal * 256 / 1e6);
+                            layers[i].notes[j].decay = (float)(tables[macros[j].adsrIndex].decay / 1e3) + (float)(tables[macros[j].adsrIndex].decayDecimal * 256 / 1e6);
+                            layers[i].notes[j].sustain = (float)(tables[macros[k].adsrIndex].sustain) * 0.0244 + (float)(tables[macros[k].adsrIndex].sustainDecimal * 6.25);
+                            layers[i].notes[j].release = (float)(tables[macros[j].adsrIndex].release / 1e3) + (float)(tables[macros[j].adsrIndex].releaseDecimal * 256 / 1e6);
                             */
                         }
-
-                        printf("\tRoot Key %X\n", macros[j].rootKey);
-                        instruments[i].notes[0].exists = true;
-                        instruments[i].notes[0].pan = 64;	// Assuming this sample is centered
-                        instruments[i].noteCount = 1;
-
-                        // Reserved for ADSR
+                        layers[i].notes[j].exists = true;
+                        layers[i].notes[j].transpose = ReadBE(pool, 8);
+                        layers[i].notes[j].pan = ReadBE(pool, 8);
+                        fseek(pool, 4, SEEK_CUR);
+                        break;
                     }
                 }
             }
+            layers[i].notes[j].startNote = j;
+            layers[i].notes[j].endNote = j;
         }
-        fclose(pool);
+    }
 
-        ofstream bankTemplate("soundfontBuild.txt");
-        stringstream bankTemplateText;
-        string bankText;
-        bankTemplateText << "[Samples]\n";
 
-        printf("Writing samples\n");
-        for (int i = 0; i < dspCount; i++)
+    // Getting our instrument info from proj
+    FILE *proj = fopen(argv[1], "rb");
+    fseek(proj, 0x1c, SEEK_SET);
+    u32 projInstOffset = ReadBE(proj, 32);
+    u32 projDrumOffset = ReadBE(proj, 32);
+    u32 projFinalOffset = ReadBE(proj, 32);
+    int instCount = (projDrumOffset - projInstOffset) / 6;
+    int drumCount = (projFinalOffset - projDrumOffset) / 6;
+    fseek(proj, projInstOffset, SEEK_SET);
+
+    for (unsigned short i = 0; i < 128; i++)
+    {
+        instruments[i].exists = false;
+        instruments[i].noteCount = 0;
+        instruments[i].notes.resize(1);
+        instruments[i].notes[0].sampleID == 0;
+        drums[i].exists = false;
+        drums[i].noteCount = 0;
+        drums[i].notes.resize(1);
+        drums[i].notes[0].sampleID == 0;
+    }
+    for (int i = 0; i < instCount; i++)
+    {
+        fseek(proj, projInstOffset + i * 6, SEEK_SET);
+        tempID = ReadBE(proj, 16);
+        if (tempID == 0xffff)
+            continue;
+        else if (tempID & 0x8000)  	// Normal layer section
         {
-            bankTemplateText << "\n    SampleName=" << hex << dsps[i].id << "\n        SampleRate=" << to_string(dsps[i].sampleRate) << "\n        Key=" << to_string(dsps[i].baseNote) << "\n        FineTune=0\n        Type=1\n";
+            fseek(proj, 2, SEEK_CUR);
+            tempChar = ReadBE(proj, 8);
+
+            for (int j = 0; j < layerCount; j++)
+            {
+                if (layers[j].id == tempID)
+                {
+                    instruments[(int)tempChar] = layers[j];
+                    break;
+                }
+            }
+            instruments[(int)tempChar].exists = true;
+//				printf("Instrument %d exists\n", tempChar);
+            printf("%s exists\n", general_MIDI_instr_names[tempChar]);
         }
-        bankTemplateText << "\n\n[Instruments]\n";
 
-
-        for (unsigned short i = 0; i < 128; i++)
+        else if (tempID & 0x4000)  	// Keymap section
         {
-            if (drums[i].exists && drums[i].noteCount)
+            fseek(proj, 2, SEEK_CUR);
+            tempChar = ReadBE(proj, 8);
+
+
+            for (int j = 0; j < layerCount; j++)
+            {
+                if (layers[j].id == tempID)
+                {
+                    instruments[(int)tempChar] = layers[j];
+                    break;
+                }
+            }
+            instruments[(int)tempChar].exists = true;
+//				printf("Instrument %d exists as a keymap\n", tempChar);
+            printf("%s exists as a keymap\n", general_MIDI_instr_names[tempChar]);
+        }
+
+        else  	// Instrument just has info at macro
+        {
+            fseek(proj, 2, SEEK_CUR);
+            tempChar = ReadBE(proj, 8);
+            instruments[(int)tempChar].exists = true;
+
+            instruments[(int)tempChar].id = tempID;
+            instruments[(int)tempChar].notes.resize(1);
+            instruments[(int)tempChar].notes[0].startNote = 0;
+            instruments[(int)tempChar].notes[0].endNote = 127;
+//				printf("Instrument %d exists as a single macro\n", tempChar);
+            printf("%s exists as a single macro\n", general_MIDI_instr_names[tempChar]);
+        }
+    }
+
+    fseek(proj, projDrumOffset, SEEK_SET);
+    for (int i = 0; i < drumCount; i++)
+    {
+        fseek(proj, projDrumOffset + i * 6, SEEK_SET);
+        tempID = ReadBE(proj, 16);
+        if (tempID == 0xffff)
+        {
+            continue;
+        }
+        else
+        {
+            fseek(proj, 2, SEEK_CUR);
+            tempChar = ReadBE(proj, 8);
+
+            for (int j = 0; j < layerCount; j++)
+            {
+                if (layers[j].id == tempID)
+                {
+                    drums[(int)tempChar] = layers[j];
+                    break;
+                }
+            }
+            drums[(int)tempChar].exists = true;
+            printf("Drumkit %d exists\n", tempChar);
+        }
+    }
+    fclose(proj);
+
+    printf("Taking care of instruments with only macros\n");
+    for (unsigned short i = 0; i < 128; i++)
+    {
+        if (instruments[i].exists && instruments[i].notes[0].sampleID == 0)
+        {
+            printf("Looking for instrument %d macro\n", i);
+            for (int j = 0; j < macroCount; j++)
+            {
+                if (macros[j].id == instruments[i].id)
+                {
+                    printf("\tMacro %X\n", macros[j].id);
+                    instruments[i].notes[0].sampleID = macros[j].sampleID;
+                    instruments[i].notes[0].baseNote = macros[j].rootKey;
+
+                    if (macros[j].adsrIndex != 0)
+                    {
+                        instruments[i].notes[0].adsr = true;
+                        instruments[i].notes[0].attack = tables[macros[j].adsrIndex].attackTimecents;
+                        instruments[i].notes[0].decay = tables[macros[j].adsrIndex].decayTimecents;
+                        instruments[i].notes[0].sustain = tables[macros[j].adsrIndex].sustaindB * 10;
+                        instruments[i].notes[0].release = timeToTimecents(tables[macros[j].adsrIndex].releaseTime);
+                        /*
+                        instruments[i].notes[0].attack = (float)(tables[macros[j].adsrIndex].attack / 1e3) + (float)(tables[macros[j].adsrIndex].attackDecimal * 256 / 1e6);
+                        instruments[i].notes[0].decay = (float)(tables[macros[j].adsrIndex].decay / 1e3) + (float)(tables[macros[j].adsrIndex].decayDecimal * 256 / 1e6);
+                        instruments[i].notes[0].sustain = (float)(tables[macros[k].adsrIndex].sustain) * 0.0244 + (float)(tables[macros[k].adsrIndex].sustainDecimal * 6.25);
+                        instruments[i].notes[0].release = (float)(tables[macros[j].adsrIndex].release / 1e3) + (float)(tables[macros[j].adsrIndex].releaseDecimal * 256 / 1e6);
+                        */
+                    }
+
+                    printf("\tRoot Key %X\n", macros[j].rootKey);
+                    instruments[i].notes[0].exists = true;
+                    instruments[i].notes[0].pan = 64;	// Assuming this sample is centered
+                    instruments[i].noteCount = 1;
+
+                    // Reserved for ADSR
+                }
+            }
+        }
+    }
+    fclose(pool);
+
+    ofstream bankTemplate("soundfontBuild.txt");
+    stringstream bankTemplateText;
+    string bankText;
+    bankTemplateText << "[Samples]\n";
+
+    printf("Writing samples\n");
+    for (int i = 0; i < dspCount; i++)
+    {
+        bankTemplateText << "\n    SampleName=" << hex << dsps[i].id << "\n        SampleRate=" << to_string(dsps[i].sampleRate) << "\n        Key=" << to_string(dsps[i].baseNote) << "\n        FineTune=0\n        Type=1\n";
+    }
+    bankTemplateText << "\n\n[Instruments]\n";
+
+
+    for (unsigned short i = 0; i < 128; i++)
+    {
+        if (drums[i].exists && drums[i].noteCount)
+        {
+
+            bankTemplateText << "\n    InstrumentName=Drum" << i << "\n";
+            for (unsigned int j = 0; j < drums[i].noteCount; j++)
             {
 
-                bankTemplateText << "\n    InstrumentName=Drum" << i << "\n";
-                for (unsigned int j = 0; j < drums[i].noteCount; j++)
+                if (drums[i].notes[j].exists)
                 {
+                    printf("Printing Drum %d: Note Region %d\n", i, j);
 
-                    if (drums[i].notes[j].exists)
+                    bankTemplateText << "\n        Sample=" << hex << drums[i].notes[j].sampleID << "\n";
+                    bankTemplateText << "            Z_LowKey=" << to_string(drums[i].notes[j].startNote) << "\n";
+                    bankTemplateText << "            Z_HighKey=" << to_string(drums[i].notes[j].endNote) << "\n";
+                    bankTemplateText << "            Z_LowVelocity=0\n";
+                    bankTemplateText << "            Z_HighVelocity=127\n";
+                    bankTemplateText << "            Z_overridingRootKey=" << to_string(drums[i].notes[j].baseNote - drums[i].notes[j].transpose) << "\n"; // + drums[i].notes[j].transpose
+                    bankTemplateText << "            Z_initialAttenuation=" << to_string((int)floor(getVolume(drums[i].notes[j].volume))) << "\n";
+                    bankTemplateText << "            Z_pan=" << to_string((int)floor(getPan(drums[i].notes[j].pan))) << "\n";
+
+                    if (drums[i].notes[j].adsr)
                     {
-                        printf("Printing Drum %d: Note Region %d\n", i, j);
-
-                        bankTemplateText << "\n        Sample=" << hex << drums[i].notes[j].sampleID << "\n";
-                        bankTemplateText << "            Z_LowKey=" << to_string(drums[i].notes[j].startNote) << "\n";
-                        bankTemplateText << "            Z_HighKey=" << to_string(drums[i].notes[j].endNote) << "\n";
-                        bankTemplateText << "            Z_LowVelocity=0\n";
-                        bankTemplateText << "            Z_HighVelocity=127\n";
-                        bankTemplateText << "            Z_overridingRootKey=" << to_string(drums[i].notes[j].baseNote - drums[i].notes[j].transpose) << "\n"; // + drums[i].notes[j].transpose
-                        bankTemplateText << "            Z_initialAttenuation=" << to_string((int)floor(getVolume(drums[i].notes[j].volume))) << "\n";
-                        bankTemplateText << "            Z_pan=" << to_string((int)floor(getPan(drums[i].notes[j].pan))) << "\n";
-
-                        if (drums[i].notes[j].adsr)
-                        {
-                            bankTemplateText << "            Z_attackVolEnv=" << to_string((int)(drums[i].notes[j].attack)) << "\n";
-                            bankTemplateText << "            Z_decayVolEnv=" << to_string((int)(drums[i].notes[j].decay)) << "\n";
-                            bankTemplateText << "            Z_sustainVolEnv=" << to_string((int)floor((drums[i].notes[j].sustain))) << "\n";
+                        bankTemplateText << "            Z_attackVolEnv=" << to_string((int)(drums[i].notes[j].attack)) << "\n";
+                        bankTemplateText << "            Z_decayVolEnv=" << to_string((int)(drums[i].notes[j].decay)) << "\n";
+                        bankTemplateText << "            Z_sustainVolEnv=" << to_string((int)floor((drums[i].notes[j].sustain))) << "\n";
 //							bankTemplateText << "            Z_sustainVolEnv=" << to_string((int)floor(drums[i].notes[j].sustain)) << "\n";
-                            bankTemplateText << "            Z_releaseVolEnv=" << to_string((int)(drums[i].notes[j].release)) << "\n";
-                        }
-
-                        /*
-                        bankTemplateText << "            Z_holdVolEnv=" << to_string((int)instruments[j].notes[k].getHold()) << "\n";
-                        */
-                        bankTemplateText << "            Z_sampleModes=" << dec << (int)(drums[i].notes[j].loopFlag) << "\n";
+                        bankTemplateText << "            Z_releaseVolEnv=" << to_string((int)(drums[i].notes[j].release)) << "\n";
                     }
 
-                    else
-                        continue;
-
-
+                    /*
+                    bankTemplateText << "            Z_holdVolEnv=" << to_string((int)instruments[j].notes[k].getHold()) << "\n";
+                    */
+                    bankTemplateText << "            Z_sampleModes=" << dec << (int)(drums[i].notes[j].loopFlag) << "\n";
                 }
+
+                else
+                    continue;
+
+
             }
-            else
-                continue;
         }
+        else
+            continue;
+    }
 
-        for (unsigned short i = 0; i < 128; i++)
+    for (unsigned short i = 0; i < 128; i++)
+    {
+        if (instruments[i].exists && instruments[i].noteCount)
         {
-            if (instruments[i].exists && instruments[i].noteCount)
-            {
-                printf("Printing Instrument %d:\n", i);
+            printf("Printing Instrument %d:\n", i);
 
-                bankTemplateText << "\n    InstrumentName=" << general_MIDI_instr_names[i] << "\n";
-                for (unsigned int j = 0; j < instruments[i].noteCount; j++)
+            bankTemplateText << "\n    InstrumentName=" << general_MIDI_instr_names[i] << "\n";
+            for (unsigned int j = 0; j < instruments[i].noteCount; j++)
+            {
+
+                if (instruments[i].notes[j].exists)
                 {
+                    printf("\tNote Region %d\n", j);
 
-                    if (instruments[i].notes[j].exists)
+                    bankTemplateText << "\n        Sample=" << hex << instruments[i].notes[j].sampleID << "\n";
+                    bankTemplateText << "            Z_LowKey=" << to_string(instruments[i].notes[j].startNote) << "\n";
+                    bankTemplateText << "            Z_HighKey=" << to_string(instruments[i].notes[j].endNote) << "\n";
+                    bankTemplateText << "            Z_LowVelocity=0\n";
+                    bankTemplateText << "            Z_HighVelocity=127\n";
+                    bankTemplateText << "            Z_overridingRootKey=" << to_string(instruments[i].notes[j].baseNote - instruments[i].notes[j].transpose) << "\n"; // + instruments[i].notes[j].transpose
+                    bankTemplateText << "            Z_initialAttenuation=" << to_string((int)floor(getVolume(instruments[i].notes[j].volume))) << "\n";
+                    bankTemplateText << "            Z_pan=" << to_string((int)floor(getPan(instruments[i].notes[j].pan))) << "\n";
+
+                    if (instruments[i].notes[j].adsr)
                     {
-                        printf("\tNote Region %d\n", j);
-
-                        bankTemplateText << "\n        Sample=" << hex << instruments[i].notes[j].sampleID << "\n";
-                        bankTemplateText << "            Z_LowKey=" << to_string(instruments[i].notes[j].startNote) << "\n";
-                        bankTemplateText << "            Z_HighKey=" << to_string(instruments[i].notes[j].endNote) << "\n";
-                        bankTemplateText << "            Z_LowVelocity=0\n";
-                        bankTemplateText << "            Z_HighVelocity=127\n";
-                        bankTemplateText << "            Z_overridingRootKey=" << to_string(instruments[i].notes[j].baseNote - instruments[i].notes[j].transpose) << "\n"; // + instruments[i].notes[j].transpose
-                        bankTemplateText << "            Z_initialAttenuation=" << to_string((int)floor(getVolume(instruments[i].notes[j].volume))) << "\n";
-                        bankTemplateText << "            Z_pan=" << to_string((int)floor(getPan(instruments[i].notes[j].pan))) << "\n";
-
-                        if (instruments[i].notes[j].adsr)
-                        {
-                            bankTemplateText << "            Z_attackVolEnv=" << to_string((int)(instruments[i].notes[j].attack)) << "\n";
-                            bankTemplateText << "            Z_decayVolEnv=" << to_string((int)(instruments[i].notes[j].decay)) << "\n";
-                            bankTemplateText << "            Z_sustainVolEnv=" << to_string((int)floor((instruments[i].notes[j].sustain))) << "\n";
+                        bankTemplateText << "            Z_attackVolEnv=" << to_string((int)(instruments[i].notes[j].attack)) << "\n";
+                        bankTemplateText << "            Z_decayVolEnv=" << to_string((int)(instruments[i].notes[j].decay)) << "\n";
+                        bankTemplateText << "            Z_sustainVolEnv=" << to_string((int)floor((instruments[i].notes[j].sustain))) << "\n";
 //							bankTemplateText << "            Z_sustainVolEnv=" << to_string((int)floor(instruments[i].notes[j].sustain)) << "\n";
-                            bankTemplateText << "            Z_releaseVolEnv=" << to_string((int)(instruments[i].notes[j].release)) << "\n";
-                        }
-
-                        /*
-                        bankTemplateText << "            Z_holdVolEnv=" << to_string((int)instruments[j].notes[k].getHold()) << "\n";
-
-                        */
-                        bankTemplateText << "            Z_sampleModes=" << dec << (int)(instruments[i].notes[j].loopFlag) << "\n";
+                        bankTemplateText << "            Z_releaseVolEnv=" << to_string((int)(instruments[i].notes[j].release)) << "\n";
                     }
 
-                    else
-                        continue;
+                    /*
+                    bankTemplateText << "            Z_holdVolEnv=" << to_string((int)instruments[j].notes[k].getHold()) << "\n";
+
+                    */
+                    bankTemplateText << "            Z_sampleModes=" << dec << (int)(instruments[i].notes[j].loopFlag) << "\n";
                 }
 
-
-
+                else
+                    continue;
             }
-            else
-                continue;
+
+
+
         }
+        else
+            continue;
+    }
 
 
-        bankTemplateText << "\n\n[Presets]\n";
+    bankTemplateText << "\n\n[Presets]\n";
 
-        for (unsigned short i = 0; i < 128; i++)
+    for (unsigned short i = 0; i < 128; i++)
+    {
+        if (drums[i].exists && drums[i].noteCount)
         {
-            if (drums[i].exists && drums[i].noteCount)
-            {
-                bankTemplateText << "\n    PresetName=Program" << i << "Drum\n        Bank=128\n        Program=" << i << "\n";
-                bankTemplateText << "\n        Instrument=Drum" << i << "\n            L_LowKey=0\n            L_HighKey=127\n            L_LowVelocity=0\n            L_HighVelocity=127\n\n";
-            }
-            else
-                continue;
+            bankTemplateText << "\n    PresetName=Program" << i << "Drum\n        Bank=128\n        Program=" << i << "\n";
+            bankTemplateText << "\n        Instrument=Drum" << i << "\n            L_LowKey=0\n            L_HighKey=127\n            L_LowVelocity=0\n            L_HighVelocity=127\n\n";
         }
+        else
+            continue;
+    }
 
-        for (unsigned short i = 0; i < 128; i++)
+    for (unsigned short i = 0; i < 128; i++)
+    {
+        if (instruments[i].exists && instruments[i].noteCount)
         {
-            if (instruments[i].exists && instruments[i].noteCount)
-            {
-                bankTemplateText << "\n    PresetName=" << general_MIDI_instr_names[i] << "\n        Bank=0\n        Program=" << i << "\n";
-                bankTemplateText << "\n        Instrument=" << general_MIDI_instr_names[i] << "\n            L_LowKey=0\n            L_HighKey=127\n            L_LowVelocity=0\n            L_HighVelocity=127\n\n";
-            }
-            else
-                continue;
+            bankTemplateText << "\n    PresetName=" << general_MIDI_instr_names[i] << "\n        Bank=0\n        Program=" << i << "\n";
+            bankTemplateText << "\n        Instrument=" << general_MIDI_instr_names[i] << "\n            L_LowKey=0\n            L_HighKey=127\n            L_LowVelocity=0\n            L_HighVelocity=127\n\n";
         }
+        else
+            continue;
+    }
 
-        bankTemplateText << "\n[Info]\nVersion=2.1\nEngine=EMU8000 \nName=" << "golf" << "\nROMName=\nROMVersion=0.0\nDate=\nDesigner=\nProduct=\nCopyright=\nEditor=Awave Studio v10.6  \nComments=\n";
+    bankTemplateText << "\n[Info]\nVersion=2.1\nEngine=EMU8000 \nName=" << "golf" << "\nROMName=\nROMVersion=0.0\nDate=\nDesigner=\nProduct=\nCopyright=\nEditor=Awave Studio v10.6  \nComments=\n";
 
 
 
-        bankText = bankTemplateText.str();
-        bankTemplate << bankText;
-        bankTemplate.close();
+    bankText = bankTemplateText.str();
+    bankTemplate << bankText;
+    bankTemplate.close();
 
     return 0;
 }
