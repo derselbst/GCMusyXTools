@@ -91,31 +91,6 @@ typedef struct
     u16 lyn2;         // sample history (n-2) for loop context
 } dsp;
 
-//typedef struct
-//{
-//// for header generation during decode
-//u32 num_samples;      // total number of RAW samples
-//u32 num_adpcm_nibbles // number of ADPCM nibbles (including frame headers)
-//u32 sample_rate;      // Sample rate, in Hz
-//// DSP addressing and decode context
-//u16 loop_flag;    // 1=LOOPED, 0=NOT LOOPED
-//u16 format;       // Always 0x0000, for ADPCM
-//u32 sa;           // Start offset address for looped samples (zero for non-looped)
-//u32 ea;           // End offset address for looped samples
-//u32 ca;           // always zero
-//u16 coef[16];     // decode coefficients (eight pairs of 16-bit words)
-//// DSP decoder initial state
-//u16 gain;         // always zero for ADPCM
-//u16 ps;           // predictor/scale
-//u16 yn1;          // sample history
-//u16 yn2;          // sample history
-//// DSP decoder loop context
-//u16 lps;          // predictor/scale for loop context
-//u16 lyn1;         // sample history (n-1) for loop context
-//u16 lyn2;         // sample history (n-2) for loop context
-//u16 pad[11];      // reserved
-//} sDSPADPCM;
-
 typedef struct
 {
     u32 size;
@@ -396,33 +371,58 @@ int main(int argc, const char* argv[])
             loop_end = 0;
         }
 
-        int32_t temp;
-        fwrite(&(temp = bswap_32(dsps[i].sampleCount)), 4, 1, dsp);// 0x00 raw samples
-        fwrite(&(temp = bswap_32(nibbles)), 4, 1, dsp);        // 0x04 nibbles
-        fwrite(&(temp = bswap_32(dsps[i].sampleRate)), 4, 1, dsp);// 0x08 sample rate
-        fwrite(&(temp = bswap_16(loop_flag)), 2, 1, dsp);// 0x0C loop flag
-        fwrite(&(temp = bswap_16(0)), 2, 1, dsp); // 0x0E format (always zero - ADPCM)
-        fwrite(&(temp = bswap_32(loop_start)), 4, 1, dsp);  // 0x10 loop start address (in nibbles)
-        fwrite(&(temp = bswap_32(loop_end)), 4, 1, dsp);// 0x14 loop end address (in nibbles)
-        fwrite(&(temp = bswap_32(2)), 4, 1, dsp);   // 0x18 initial offset value (in nibbles)
-        fwrite(dsps[i].adpcmCoeff, sizeof(dsps[i].adpcmCoeff[0]), 16, dsp);  // 0x1C coefficients
-        fwrite(&(temp = bswap_16(0)), 2, 1, dsp);   // 0x3C gain (always zero for ADPCM)
+        struct
+        {
+        // for header generation during decode
+        u32 num_samples;      // total number of RAW samples
+        u32 num_adpcm_nibbles; // number of ADPCM nibbles (including frame headers)
+        u32 sample_rate;      // Sample rate, in Hz
+        // DSP addressing and decode context
+        u16 loop_flag;    // 1=LOOPED, 0=NOT LOOPED
+        u16 format;       // Always 0x0000, for ADPCM
+        u32 sa;           // Start offset address for looped samples (zero for non-looped)
+        u32 ea;           // End offset address for looped samples
+        u32 ca;           // always zero
+        u16 coef[16];     // decode coefficients (eight pairs of 16-bit words)
+        // DSP decoder initial state
+        u16 gain;         // always zero for ADPCM
+        u16 ps;           // predictor/scale
+        u16 yn1;          // sample history
+        u16 yn2;          // sample history
+        // DSP decoder loop context
+        u16 lps;          // predictor/scale for loop context
+        u16 lyn1;         // sample history (n-1) for loop context
+        u16 lyn2;         // sample history (n-2) for loop context
+        u16 pad[11] = {0};      // reserved
+        } sDSPADPCM;
 
-        fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x3E predictor/scale
-        fwrite(&dsps[i].ps, 1, 1, dsp);
+        sDSPADPCM.num_samples = bswap_32(dsps[i].sampleCount);
+        sDSPADPCM.num_adpcm_nibbles = bswap_32(nibbles);
+        sDSPADPCM.sample_rate = bswap_32(dsps[i].sampleRate);
 
-        fwrite(&dsps[i].yn1, 2, 1, dsp);// 0x40 sample history (not specified?)
-        fwrite(&dsps[i].yn2, 2, 1, dsp); // 0x42 sample history (not specified?)
+        sDSPADPCM.loop_flag = bswap_16(loop_flag);
+        sDSPADPCM.format = bswap_16(0);
+        sDSPADPCM.sa = bswap_32(loop_start);
+        sDSPADPCM.ea = bswap_32(loop_end);
+        sDSPADPCM.ca = bswap_32(0);
 
-        fwrite(&(temp = int8_t(0)), 1, 1, dsp); // 0x44 predictor/scale for loop context
-        fwrite(&dsps[i].lps, 1, 1, dsp);
+        memcpy(sDSPADPCM.coef, dsps[i].adpcmCoeff, sizeof(sDSPADPCM.coef));
 
-        fwrite(&dsps[i].lyn1, 2, 1, dsp);// 0x46 sample history (n-1) for loop context
-        fwrite(&dsps[i].lyn2, 2, 1, dsp); // 0x48 sample history (n-2) for loop context
+        sDSPADPCM.gain = bswap_16(0);
 
-        for(int i=0; i<11; i++)
-            fwrite(&(temp = int8_t(0)), 2, 1, dsp); //0x4A pad (reserved)
+        // store a byte bigendian in u16
+        sDSPADPCM.ps = dsps[i].ps << 8;
 
+        sDSPADPCM.yn1 = dsps[i].yn1;
+        sDSPADPCM.yn2 = dsps[i].yn2;
+
+        sDSPADPCM.lps = dsps[i].lps << 8;
+
+        sDSPADPCM.lyn1 = dsps[i].lyn1;
+        sDSPADPCM.lyn2 = dsps[i].lyn2;
+
+        // write header
+        fwrite(&sDSPADPCM, sizeof(sDSPADPCM), 1, dsp);
 
         int sample_size = samples_to_bytes(dsps[i].sampleCount);
         extract_data(samp, dsp, sample_size);
