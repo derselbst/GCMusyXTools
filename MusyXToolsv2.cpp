@@ -288,29 +288,29 @@ int samples_to_bytes(int samples)
 
 int main(int argc, const char* argv[])
 {
-    FILE *proj, *pool, *sdir;
-    int i, j, k, n, instCount, actualInstCount = 0, drumCount, actualDrumCount = 0, curInstrument = 0;
+    int actualInstCount = 0, actualDrumCount = 0, curInstrument = 0;
     instrument instruments[128];
     instrument drums[128];
     vector<instrument> layers;
     u8 tempChar;
     u16 tempID;
-    u32 tempSize, tempOffset, nextOffset, poolSize;
+    u32 tempSize, tempOffset, nextOffset;
 
     if (argc < 5)
-        printf("Usage:\n%s inst.proj inst.pool inst.sdir inst.samp", argv[0]);
-    else
     {
+        printf("Usage:\n%s inst.proj inst.pool inst.sdir inst.samp", argv[0]);
+        return 1;
+    }
 
         // Now getting sample info
-        sdir = fopen(argv[3], "rb");
+        FILE *sdir = fopen(argv[3], "rb");
         vector<dsp> dsps;
         fseek(sdir, 0, SEEK_END);
         u32 sdirSize = ftell(sdir);
         fseek(sdir, 0, SEEK_SET);
         int dspCount = (sdirSize - 4) / (0x20 + 0x28);
         dsps.resize(dspCount);
-        for (i = 0; i < dspCount; i++)
+        for (int i = 0; i < dspCount; i++)
         {
             dsps[i].id = ReadBE(sdir, 16);
             printf("Reading sample %X\n", dsps[i].id);
@@ -338,13 +338,13 @@ int main(int argc, const char* argv[])
             dsps[i].infoOffset = ReadBE(sdir, 32);
         }
 
-        for (i = 0; i < dspCount; i++)
+        for (int i = 0; i < dspCount; i++)
         {
             fseek(sdir, dsps[i].infoOffset, SEEK_SET);
 
             // they are big endian, leave them big, since we dont need them
 
-            fread(&dsps[i].bytesPerFrame, 2,1, sdir);  // is this of any use??
+            fread(&dsps[i].bytesPerFrame, 2,1, sdir); // is this of any use??
             fread(&dsps[i].ps, 1,1, sdir);
             fread(&dsps[i].lps, 1,1, sdir);
 
@@ -362,7 +362,7 @@ int main(int argc, const char* argv[])
         // open samp file and write out dsp files
         FILE* samp = fopen(argv[4], "rb");
 
-        for (i = 0; i < dspCount; i++)
+        for (int i = 0; i < dspCount; i++)
         {
             fseek(sdir, dsps[i].sampOffset, SEEK_SET);
 
@@ -434,9 +434,9 @@ int main(int argc, const char* argv[])
 
 
         // Reading pool
-        pool = fopen(argv[2], "rb");
+        FILE *pool = fopen(argv[2], "rb");
         fseek(pool, 0, SEEK_END);
-        poolSize = ftell(pool);
+        u32 poolSize = ftell(pool);
         fseek(pool, 0, SEEK_SET);
         u32 macroOffset = ReadBE(pool, 32);
         u32 adsrOffset = ReadBE(pool, 32);
@@ -534,7 +534,7 @@ int main(int argc, const char* argv[])
                     {
                         fseek(pool, -3, SEEK_CUR);
                         macros[macroCount - 1].sampleID = ReadBE(pool, 16);
-                        for (i = 0; i < dspCount; i++)
+                        for (int i = 0; i < dspCount; i++)
                         {
                             if (dsps[i].id == macros[macroCount - 1].sampleID)
                             {
@@ -549,7 +549,7 @@ int main(int argc, const char* argv[])
                     {
                         fseek(pool, -3, SEEK_CUR);
                         macros[macroCount - 1].adsrID = ReadBE(pool, 16);
-                        for (i = 0; i < tableCount; i++)
+                        for (int i = 0; i < tableCount; i++)
                         {
                             if (tables[i].id == macros[macroCount - 1].adsrID)
                             {
@@ -587,7 +587,7 @@ int main(int argc, const char* argv[])
                 layers[layerCount - 1].noteCount = ReadBE(pool, 32);
                 layers[layerCount - 1].notes.resize(layers[layerCount - 1].noteCount);
                 printf("Layer %X at 0x%X with %d note regions\n", layers[layerCount - 1].id, ftell(pool), layers[layerCount - 1].noteCount);
-                for (j = 0; j < layers[layerCount - 1].noteCount; j++)
+                for (unsigned int j = 0; j < layers[layerCount - 1].noteCount; j++)
                 {
                     tempID = ReadBE(pool, 16);
                     if (tempID == 0xffff)
@@ -598,7 +598,7 @@ int main(int argc, const char* argv[])
                     else
                     {
 
-                        for (k = 0; k < macroCount; k++)
+                        for (int k = 0; k < macroCount; k++)
                         {
                             if (macros[k].id == tempID)
                             {
@@ -614,7 +614,7 @@ int main(int argc, const char* argv[])
                                 fseek(pool, 2, SEEK_CUR);
                                 layers[layerCount - 1].notes[j].pan = ReadBE(pool, 8);
                                 fseek(pool, 3, SEEK_CUR);
-                                if (macros[k].adsrIndex != NULL)
+                                if (macros[k].adsrIndex != 0)
                                 {
                                     layers[layerCount - 1].notes[j].adsr = true;
                                     layers[layerCount - 1].notes[j].attack = tables[macros[j].adsrIndex].attackTimecents;
@@ -644,7 +644,7 @@ int main(int argc, const char* argv[])
         int keymapCount = (layerOffset - keymapOffset - 4) / 0x408;
         layerCount += keymapCount;
         layers.resize(layerCount);
-        for (i = layerCount - keymapCount; i < layerCount; i++)
+        for (int i = layerCount - keymapCount; i < layerCount; i++)
         {
             printf("Reading keymap at 0x%X\n", ftell(pool));
             fseek(pool, 4, SEEK_CUR);
@@ -655,7 +655,7 @@ int main(int argc, const char* argv[])
             layers[i].notes.resize(128);
 
             // Now to try and map all note regions
-            for (j = 0; j < 128; j++)
+            for (int j = 0; j < 128; j++)
             {
                 layers[i].notes[j].exists = false;
 //				printf("Reading Keymap %d: Note Region %d\n", curInstrument, j);
@@ -666,7 +666,7 @@ int main(int argc, const char* argv[])
                 }
                 else if (tempID & 0x8000)  	// Maps to layer, rather than macro
                 {
-                    for (k = 0; k < layerCount - 1; k++)  	// Reading all layers prior to this one
+                    for (int k = 0; k < layerCount - 1; k++)  	// Reading all layers prior to this one
                     {
                         if (layers[k].id == tempID)
                         {
@@ -677,7 +677,7 @@ int main(int argc, const char* argv[])
                             layers[i].notes[j].transpose = ReadBE(pool, 8);
                             layers[i].notes[j].pan = ReadBE(pool, 8);
                             layers[i].notes[j].exists = true;
-                            for (n = 1; n < layers[k].noteCount; n++)
+                            for (unsigned int n = 1; n < layers[k].noteCount; n++)
                             {
                                 layers[i].notes[layers[i].noteCount - n] = layers[k].notes[n];
                                 layers[i].notes[layers[i].noteCount - n].transpose = layers[i].notes[j].transpose;
@@ -694,7 +694,7 @@ int main(int argc, const char* argv[])
                 }
                 else
                 {
-                    for (k = 0; k < macroCount; k++)
+                    for (int k = 0; k < macroCount; k++)
                     {
                         if (macros[k].id == tempID)
                         {
@@ -702,7 +702,7 @@ int main(int argc, const char* argv[])
                             layers[i].notes[j].sampleID = macros[k].sampleID;
                             layers[i].notes[j].baseNote = macros[k].rootKey;
                             layers[i].notes[j].loopFlag = macros[k].loopFlag;
-                            if (macros[k].adsrIndex != NULL)
+                            if (macros[k].adsrIndex != 0)
                             {
                                 layers[i].notes[j].adsr = true;
                                 layers[i].notes[j].attack = tables[macros[j].adsrIndex].attackTimecents;
@@ -732,7 +732,7 @@ int main(int argc, const char* argv[])
 
 
         // Getting our instrument info from proj
-        proj = fopen(argv[1], "rb");
+        FILE *proj = fopen(argv[1], "rb");
         fseek(proj, 0x1c, SEEK_SET);
         u32 projInstOffset = ReadBE(proj, 32);
         u32 projDrumOffset = ReadBE(proj, 32);
@@ -741,18 +741,18 @@ int main(int argc, const char* argv[])
         int drumCount = (projFinalOffset - projDrumOffset) / 6;
         fseek(proj, projInstOffset, SEEK_SET);
 
-        for (i = 0; i < 128; i++)
+        for (unsigned short i = 0; i < 128; i++)
         {
             instruments[i].exists = false;
             instruments[i].noteCount = 0;
             instruments[i].notes.resize(1);
-            instruments[i].notes[0].sampleID == NULL;
+            instruments[i].notes[0].sampleID == 0;
             drums[i].exists = false;
             drums[i].noteCount = 0;
             drums[i].notes.resize(1);
-            drums[i].notes[0].sampleID == NULL;
+            drums[i].notes[0].sampleID == 0;
         }
-        for (i = 0; i < instCount; i++)
+        for (int i = 0; i < instCount; i++)
         {
             fseek(proj, projInstOffset + i * 6, SEEK_SET);
             tempID = ReadBE(proj, 16);
@@ -763,7 +763,7 @@ int main(int argc, const char* argv[])
                 fseek(proj, 2, SEEK_CUR);
                 tempChar = ReadBE(proj, 8);
 
-                for (j = 0; j < layerCount; j++)
+                for (int j = 0; j < layerCount; j++)
                 {
                     if (layers[j].id == tempID)
                     {
@@ -782,7 +782,7 @@ int main(int argc, const char* argv[])
                 tempChar = ReadBE(proj, 8);
 
 
-                for (j = 0; j < layerCount; j++)
+                for (int j = 0; j < layerCount; j++)
                 {
                     if (layers[j].id == tempID)
                     {
@@ -811,7 +811,7 @@ int main(int argc, const char* argv[])
         }
 
         fseek(proj, projDrumOffset, SEEK_SET);
-        for (i = 0; i < drumCount; i++)
+        for (int i = 0; i < drumCount; i++)
         {
             fseek(proj, projDrumOffset + i * 6, SEEK_SET);
             tempID = ReadBE(proj, 16);
@@ -824,7 +824,7 @@ int main(int argc, const char* argv[])
                 fseek(proj, 2, SEEK_CUR);
                 tempChar = ReadBE(proj, 8);
 
-                for (j = 0; j < layerCount; j++)
+                for (int j = 0; j < layerCount; j++)
                 {
                     if (layers[j].id == tempID)
                     {
@@ -839,12 +839,12 @@ int main(int argc, const char* argv[])
         fclose(proj);
 
         printf("Taking care of instruments with only macros\n");
-        for (i = 0; i < 128; i++)
+        for (unsigned short i = 0; i < 128; i++)
         {
-            if (instruments[i].exists && instruments[i].notes[0].sampleID == NULL)
+            if (instruments[i].exists && instruments[i].notes[0].sampleID == 0)
             {
                 printf("Looking for instrument %d macro\n", i);
-                for (j = 0; j < macroCount; j++)
+                for (int j = 0; j < macroCount; j++)
                 {
                     if (macros[j].id == instruments[i].id)
                     {
@@ -852,7 +852,7 @@ int main(int argc, const char* argv[])
                         instruments[i].notes[0].sampleID = macros[j].sampleID;
                         instruments[i].notes[0].baseNote = macros[j].rootKey;
 
-                        if (macros[j].adsrIndex != NULL)
+                        if (macros[j].adsrIndex != 0)
                         {
                             instruments[i].notes[0].adsr = true;
                             instruments[i].notes[0].attack = tables[macros[j].adsrIndex].attackTimecents;
@@ -885,20 +885,20 @@ int main(int argc, const char* argv[])
         bankTemplateText << "[Samples]\n";
 
         printf("Writing samples\n");
-        for (i = 0; i < dspCount; i++)
+        for (int i = 0; i < dspCount; i++)
         {
             bankTemplateText << "\n    SampleName=" << hex << dsps[i].id << "\n        SampleRate=" << to_string(dsps[i].sampleRate) << "\n        Key=" << to_string(dsps[i].baseNote) << "\n        FineTune=0\n        Type=1\n";
         }
         bankTemplateText << "\n\n[Instruments]\n";
 
 
-        for (i = 0; i < 128; i++)
+        for (unsigned short i = 0; i < 128; i++)
         {
             if (drums[i].exists && drums[i].noteCount)
             {
 
                 bankTemplateText << "\n    InstrumentName=Drum" << i << "\n";
-                for (j = 0; j < drums[i].noteCount; j++)
+                for (unsigned int j = 0; j < drums[i].noteCount; j++)
                 {
 
                     if (drums[i].notes[j].exists)
@@ -939,14 +939,14 @@ int main(int argc, const char* argv[])
                 continue;
         }
 
-        for (i = 0; i < 128; i++)
+        for (unsigned short i = 0; i < 128; i++)
         {
             if (instruments[i].exists && instruments[i].noteCount)
             {
                 printf("Printing Instrument %d:\n", i);
 
                 bankTemplateText << "\n    InstrumentName=" << general_MIDI_instr_names[i] << "\n";
-                for (j = 0; j < instruments[i].noteCount; j++)
+                for (unsigned int j = 0; j < instruments[i].noteCount; j++)
                 {
 
                     if (instruments[i].notes[j].exists)
@@ -992,7 +992,7 @@ int main(int argc, const char* argv[])
 
         bankTemplateText << "\n\n[Presets]\n";
 
-        for (i = 0; i < 128; i++)
+        for (unsigned short i = 0; i < 128; i++)
         {
             if (drums[i].exists && drums[i].noteCount)
             {
@@ -1003,7 +1003,7 @@ int main(int argc, const char* argv[])
                 continue;
         }
 
-        for (i = 0; i < 128; i++)
+        for (unsigned short i = 0; i < 128; i++)
         {
             if (instruments[i].exists && instruments[i].noteCount)
             {
@@ -1021,6 +1021,6 @@ int main(int argc, const char* argv[])
         bankText = bankTemplateText.str();
         bankTemplate << bankText;
         bankTemplate.close();
-    }
+
     return 0;
 }
