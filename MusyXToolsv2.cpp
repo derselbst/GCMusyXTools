@@ -46,6 +46,14 @@ static inline u32 ReadLE(FILE *f, u32 b)
     return v;
 }
 
+static inline void ZeroPadding(FILE*f, s32 b)
+{
+  s32 ret = ReadBE(f, b);
+  if(ret!=0)
+  {
+    printf ("Warning of offset %ld: Expected zero padding, got %d\n",ftell(f), ret);
+  }
+}
 
 typedef struct
 {
@@ -57,15 +65,15 @@ typedef struct
     u8 baseNote;
     u8 loopFlag;
     u32 sampleRate;
-    
+
     /* according to  http://www.metroid2002.com/retromodding/wiki/AGSC_(File_Format)
      * 0: DSP compressed sample
      * 1: DSP compressed drum-sample
      * 2: PCM
      * 3: VADPCM compressed (N64 legacy)
-     */    
-    u8 sampleFormat
-    
+     */
+    u8 sampleFormat;
+
     u32 sampleCount; // no. of raw, i.e. uncompressed pcm frames
     u32 loopStart;
     u32 loopLength;
@@ -306,23 +314,23 @@ int main(int argc, const char* argv[])
         {
             dsps[i].id = ReadBE(sdir, 16);
             printf("Reading sample %X\n", dsps[i].id);
-            ZERO_PADDING(16);
-            
+            ZeroPadding(sdir, 16);
+
             dsps[i].sampOffset = ReadBE(sdir, 32);
-            
-            ZERO_PADDING(32);
-            
+
+            ZeroPadding(sdir, 32);
+
             dsps[i].baseNote = ReadBE(sdir, 8);
-            ZERO_PADDING(8);
+            ZeroPadding(sdir, 8); // this might be part of the samplerate, since it influences the pitch
             dsps[i].sampleRate = ReadBE(sdir, 16);
-            
+
             dsps[i].sampleFormat = ReadBE(sdir, 8);
             dsps[i].sampleCount = ReadBE(sdir, 24);
-            
+
             dsps[i].loopStart = ReadBE(sdir, 32);
-            
+
             dsps[i].loopLength = ReadBE(sdir, 32);
-            
+
             if (dsps[i].loopLength > 0)
                 dsps[i].loopFlag = 1;
             else
@@ -336,7 +344,7 @@ int main(int argc, const char* argv[])
 
             // they are big endian, leave them big, since we dont need them
 
-            fread(&dsps[i].bytesPerFrame, 2,1, sdir);
+            fread(&dsps[i].bytesPerFrame, 2,1, sdir);  // is this of any use??
             fread(&dsps[i].ps, 1,1, sdir);
             fread(&dsps[i].lps, 1,1, sdir);
 
