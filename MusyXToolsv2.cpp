@@ -152,15 +152,18 @@ typedef struct
     u16 id;
     u8 attack;
     u8 attackDecimal;
-    s16 attackTimecents;
+    s32 attackTimecents; // attack time in timecents
+    u32 attackMs; // attack time in milliseconds
     u8 decay;
     u8 decayDecimal;
-    s16 decayTimecents;
+    s32 decayTimecents;
+    u32 decayMs;
     u8 sustain;
     u8 sustainDecimal;
     double sustaindB;
     u8 release;
     u8 releaseDecimal;
+    u32 releaseMs;
     double releaseTime;
 } table;
 
@@ -291,7 +294,6 @@ int main(int argc, const char* argv[])
     for (unsigned int i = 0; i<=0xFFFF; i++)
     {
         u16 id = ReadBE(sdir, 16);
-        printf("Reading sample %X\n", id);
         u16 padding = ZeroPadding(sdir, 16);
 
         if((u32)(id<<16 | padding) == 0xFFFFFFFFU)
@@ -302,6 +304,7 @@ int main(int argc, const char* argv[])
 
         dsp sample;
         sample.id = id;
+        printf("Reading sample %X\n", id);
 
         sample.sampOffset = ReadBE(sdir, 32);
 
@@ -466,40 +469,52 @@ int main(int argc, const char* argv[])
     int tableCount = 0;
     while (ftell(pool) < keymapOffset - 4)
     {
+        // size of this table chunk
         tempSize = ReadBE(pool, 32);
         nextOffset += tempSize;
-//			if (tempSize == 0x10) {	// Only know how to read these tables so far
+
+        // ID of this table
         tempID = ReadBE(pool, 16);
         if (tempID != 0xffff)
         {
             tableCount++;
-            printf("Table %X:\n", tempID);
+            printf("Table 0x%X: ", tempID);
             tables.resize(tableCount);
             tables[tableCount - 1].size = tempSize;
             tables[tableCount - 1].id = tempID;
-            fseek(pool, 2, SEEK_CUR);
+            ZeroPadding(pool, 16);
+
             if (tempSize == 0x1c)
             {
-                // skipping attack and decay for now
-//						fseek(pool, 8, SEEK_CUR);
-                fseek(pool, 2, SEEK_CUR);
+                printf("contains a DLS ADSR envelope\n");
 
-                tables[tableCount - 1].attackTimecents = ReadLE(pool, 16);
-                fseek(pool, 2, SEEK_CUR);
-                tables[tableCount - 1].decayTimecents = ReadLE(pool, 16);
+                //fseek(pool, 2, SEEK_CUR);
+
+                tables[tableCount - 1].attackTimecents = ReadLE(pool, 32);
+                //fseek(pool, 2, SEEK_CUR);
+                tables[tableCount - 1].decayTimecents = ReadLE(pool, 32);
                 tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
-                tables[tableCount - 1].releaseTime = (double)ReadLE(pool, 16) / 1000;
-                printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %.03f seconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseTime);
-                fseek(pool, nextOffset, SEEK_SET);
+                tables[tableCount - 1].releaseMs = ReadLE(pool, 16);
+
+                printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %d milliseconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseMs);
+
+                // velocity to attack scale
+                // explanation needed what this means
+                ReadLE(pool, 32);
+
+                // key to decay scale
+                // ???
+                ReadLE(pool, 32);
             }
-            else
+            else if(tempSize == 0x10)
             {
+                printf("contains a ADSR envelope\n");
 
-                tables[tableCount - 1].attackTimecents = ReadLE(pool, 16);
-                tables[tableCount - 1].decayTimecents = ReadLE(pool, 16);
+                tables[tableCount - 1].attackMs/*Timecents*/ = ReadLE(pool, 16);
+                tables[tableCount - 1].decayMs/*Timecents*/ = ReadLE(pool, 16);
                 tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
-                tables[tableCount - 1].releaseTime = (double)ReadLE(pool, 16) / 1000;
-                printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %.03f seconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseTime);
+                tables[tableCount - 1].releaseMs = ReadLE(pool, 16);
+                printf("\tAttack = %d milliseconds:\n\tDecay = %d milliseconds:\n\tSustain Level = -%.03f dB:\n\tRelease = %d milliseconds:\n", tables[tableCount - 1].attackMs, tables[tableCount - 1].decayMs, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseMs);
 
                 /*
                 tables[tableCount - 1].attack = ReadBE(pool, 8);
@@ -511,8 +526,14 @@ int main(int argc, const char* argv[])
                 tables[tableCount - 1].release = ReadBE(pool, 8);
                 tables[tableCount - 1].releaseDecimal = ReadBE(pool, 8);
                 */
-                fseek(pool, nextOffset, SEEK_SET);
             }
+            else
+            {
+                printf("contains unknown garbage!\n");
+            }
+
+            // seek to the next table chunk
+            fseek(pool, nextOffset, SEEK_SET);
         }
         else
             fseek(pool, nextOffset, SEEK_SET);
