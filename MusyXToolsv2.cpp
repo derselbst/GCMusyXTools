@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -46,13 +47,15 @@ static inline u32 ReadLE(FILE *f, u32 b)
     return v;
 }
 
-static inline void ZeroPadding(FILE*f, s32 b)
+static inline u32 ZeroPadding(FILE*f, s32 b)
 {
-    s32 ret = ReadBE(f, b);
+    u32 ret = ReadBE(f, b);
     if(ret!=0)
     {
-        printf ("Warning of offset %ld: Expected zero padding, got %d\n",ftell(f), ret);
+        printf ("Warning at offset %ld: Expected zero padding, got %d\n",ftell(f), ret);
     }
+
+    return ret;
 }
 
 typedef struct
@@ -283,37 +286,49 @@ int main(int argc, const char* argv[])
     fseek(sdir, 0, SEEK_END);
     u32 sdirSize = ftell(sdir);
     fseek(sdir, 0, SEEK_SET);
-    int dspCount = (sdirSize - 4) / (0x20 + 0x28);
-    dsps.resize(dspCount);
-    for (int i = 0; i < dspCount; i++)
+    //int dspCount = (sdirSize - 4) / (0x20 + 0x28);
+    //dsps.resize(dspCount);
+    for (unsigned int i = 0; i<=0xFFFF; i++)
     {
-        dsps[i].id = ReadBE(sdir, 16);
-        printf("Reading sample %X\n", dsps[i].id);
-        ZeroPadding(sdir, 16);
+        u16 id = ReadBE(sdir, 16);
+        printf("Reading sample %X\n", id);
+        u16 padding = ZeroPadding(sdir, 16);
 
-        dsps[i].sampOffset = ReadBE(sdir, 32);
+        if((u32)(id<<16 | padding) == 0xFFFFFFFFU)
+        {
+            // terminator symbol
+            break;
+        }
+
+        dsp sample;
+        sample.id = id;
+
+        sample.sampOffset = ReadBE(sdir, 32);
 
         ZeroPadding(sdir, 32);
 
-        dsps[i].baseNote = ReadBE(sdir, 8);
+        sample.baseNote = ReadBE(sdir, 8);
         ZeroPadding(sdir, 8); // this might be part of the samplerate, since it influences the pitch
-        dsps[i].sampleRate = ReadBE(sdir, 16);
+        sample.sampleRate = ReadBE(sdir, 16);
 
-        dsps[i].sampleFormat = ReadBE(sdir, 8);
-        dsps[i].sampleCount = ReadBE(sdir, 24);
+        sample.sampleFormat = ReadBE(sdir, 8);
+        sample.sampleCount = ReadBE(sdir, 24);
 
-        dsps[i].loopStart = ReadBE(sdir, 32);
+        sample.loopStart = ReadBE(sdir, 32);
 
-        dsps[i].loopLength = ReadBE(sdir, 32);
+        sample.loopLength = ReadBE(sdir, 32);
 
-        if (dsps[i].loopLength > 0)
-            dsps[i].loopFlag = 1;
+        if (sample.loopLength > 0)
+            sample.loopFlag = 1;
         else
-            dsps[i].loopFlag = 0;
-        dsps[i].infoOffset = ReadBE(sdir, 32);
+            sample.loopFlag = 0;
+        sample.infoOffset = ReadBE(sdir, 32);
+
+
+        dsps.push_back(sample);
     }
 
-    for (int i = 0; i < dspCount; i++)
+    for (unsigned int i = 0; i < dsps.size(); i++)
     {
         fseek(sdir, dsps[i].infoOffset, SEEK_SET);
 
@@ -337,7 +352,7 @@ int main(int argc, const char* argv[])
     // open samp file and write out dsp files
     FILE* samp = fopen(argv[4], "rb");
 
-    for (int i = 0; i < dspCount; i++)
+    for (unsigned int i = 0; i < dsps.size(); i++)
     {
         fseek(sdir, dsps[i].sampOffset, SEEK_SET);
 
@@ -534,7 +549,7 @@ int main(int argc, const char* argv[])
                 {
                     fseek(pool, -3, SEEK_CUR);
                     macros[macroCount - 1].sampleID = ReadBE(pool, 16);
-                    for (int i = 0; i < dspCount; i++)
+                    for (unsigned int i = 0; i < dsps.size(); i++)
                     {
                         if (dsps[i].id == macros[macroCount - 1].sampleID)
                         {
@@ -885,7 +900,7 @@ int main(int argc, const char* argv[])
     bankTemplateText << "[Samples]\n";
 
     printf("Writing samples\n");
-    for (int i = 0; i < dspCount; i++)
+    for (unsigned int i = 0; i < dsps.size(); i++)
     {
         bankTemplateText << "\n    SampleName=" << hex << dsps[i].id << "\n        SampleRate=" << to_string(dsps[i].sampleRate) << "\n        Key=" << to_string(dsps[i].baseNote) << "\n        FineTune=0\n        Type=1\n";
     }
