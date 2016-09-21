@@ -1,0 +1,3 @@
+[submodule "libsf2"]
+	path = libsf2
+	url = git://github.com/derselbst/libsf2.git
