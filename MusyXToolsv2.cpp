@@ -462,11 +462,18 @@ int main(int argc, const char* argv[])
     u32 layerOffset = ReadBE(pool, 32);
 
     // Checking ADSR first
+    int tableCount = 0;
+    vector<table> tables;
+    if(adsrOffset == 0)
+    {
+        // seen in SFA (retail) starfoxs.poo
+        printf("that pool doesnt contain adsr data\n");
+    }
+    else
+    {
     printf("Checking ADSR tables\n");
     fseek(pool, adsrOffset, SEEK_SET);
     nextOffset = tempOffset = ftell(pool);
-    vector<table> tables;
-    int tableCount = 0;
     while (ftell(pool) < keymapOffset - 4)
     {
         // size of this table chunk
@@ -534,6 +541,7 @@ int main(int argc, const char* argv[])
         }
             // seek to the next table chunk
             fseek(pool, nextOffset, SEEK_SET);
+    }
     }
 
 
