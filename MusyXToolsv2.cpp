@@ -531,15 +531,9 @@ int main(int argc, const char* argv[])
             {
                 printf("contains unknown garbage!\n");
             }
-
+        }
             // seek to the next table chunk
             fseek(pool, nextOffset, SEEK_SET);
-        }
-        else
-            fseek(pool, nextOffset, SEEK_SET);
-//			}
-//			else
-//				fseek(pool, nextOffset, SEEK_SET);
     }
 
 
