@@ -12,9 +12,11 @@
 #include <sstream>
 #include <string>
 #include <regex>
-// #include <direct.h>
 #include <math.h>
 #include <byteswap.h>
+#include <unistd.h>
+
+#include "libsf2/sf2.hpp"
 
 /** For Reference see:
  * http://hcs64.com/files/DSPADPCM.us.pdf
@@ -360,7 +362,7 @@ int main(int argc, const char* argv[])
         fseek(sdir, dsps[i].sampOffset, SEEK_SET);
 
         char dsp_path[50];
-        sprintf(dsp_path, "%05d (0x%04X).dsp", i, dsps[i].id);
+        sprintf(dsp_path, "%05d (0x%04X).dsp", dsps[i].id, dsps[i].id);
 
 
         FILE* dsp = fopen(dsp_path, "wb");
@@ -391,27 +393,27 @@ int main(int argc, const char* argv[])
 
         struct
         {
-        // for header generation during decode
-        u32 num_samples;      // total number of RAW samples
-        u32 num_adpcm_nibbles; // number of ADPCM nibbles (including frame headers)
-        u32 sample_rate;      // Sample rate, in Hz
-        // DSP addressing and decode context
-        u16 loop_flag;    // 1=LOOPED, 0=NOT LOOPED
-        u16 format;       // Always 0x0000, for ADPCM
-        u32 sa;           // Start offset address for looped samples (zero for non-looped)
-        u32 ea;           // End offset address for looped samples
-        u32 ca;           // always zero
-        u16 coef[16];     // decode coefficients (eight pairs of 16-bit words)
-        // DSP decoder initial state
-        u16 gain;         // always zero for ADPCM
-        u16 ps;           // predictor/scale
-        u16 yn1;          // sample history
-        u16 yn2;          // sample history
-        // DSP decoder loop context
-        u16 lps;          // predictor/scale for loop context
-        u16 lyn1;         // sample history (n-1) for loop context
-        u16 lyn2;         // sample history (n-2) for loop context
-        u16 pad[11] = {0};      // reserved
+            // for header generation during decode
+            u32 num_samples;      // total number of RAW samples
+            u32 num_adpcm_nibbles; // number of ADPCM nibbles (including frame headers)
+            u32 sample_rate;      // Sample rate, in Hz
+            // DSP addressing and decode context
+            u16 loop_flag;    // 1=LOOPED, 0=NOT LOOPED
+            u16 format;       // Always 0x0000, for ADPCM
+            u32 sa;           // Start offset address for looped samples (zero for non-looped)
+            u32 ea;           // End offset address for looped samples
+            u32 ca;           // always zero
+            u16 coef[16];     // decode coefficients (eight pairs of 16-bit words)
+            // DSP decoder initial state
+            u16 gain;         // always zero for ADPCM
+            u16 ps;           // predictor/scale
+            u16 yn1;          // sample history
+            u16 yn2;          // sample history
+            // DSP decoder loop context
+            u16 lps;          // predictor/scale for loop context
+            u16 lyn1;         // sample history (n-1) for loop context
+            u16 lyn2;         // sample history (n-2) for loop context
+            u16 pad[11] = {0};      // reserved
         } sDSPADPCM;
 
         sDSPADPCM.num_samples = bswap_32(dsps[i].sampleCount);
@@ -471,77 +473,77 @@ int main(int argc, const char* argv[])
     }
     else
     {
-    printf("Checking ADSR tables\n");
-    fseek(pool, adsrOffset, SEEK_SET);
-    nextOffset = tempOffset = ftell(pool);
-    while (ftell(pool) < keymapOffset - 4)
-    {
-        // size of this table chunk
-        tempSize = ReadBE(pool, 32);
-        nextOffset += tempSize;
-
-        // ID of this table
-        tempID = ReadBE(pool, 16);
-        if (tempID != 0xffff)
+        printf("Checking ADSR tables\n");
+        fseek(pool, adsrOffset, SEEK_SET);
+        nextOffset = tempOffset = ftell(pool);
+        while (ftell(pool) < keymapOffset - 4)
         {
-            tableCount++;
-            printf("Table 0x%X: ", tempID);
-            tables.resize(tableCount);
-            tables[tableCount - 1].size = tempSize;
-            tables[tableCount - 1].id = tempID;
-            ZeroPadding(pool, 16);
+            // size of this table chunk
+            tempSize = ReadBE(pool, 32);
+            nextOffset += tempSize;
 
-            if (tempSize == 0x1c)
+            // ID of this table
+            tempID = ReadBE(pool, 16);
+            if (tempID != 0xffff)
             {
-                printf("contains a DLS ADSR envelope\n");
+                tableCount++;
+                printf("Table 0x%X: ", tempID);
+                tables.resize(tableCount);
+                tables[tableCount - 1].size = tempSize;
+                tables[tableCount - 1].id = tempID;
+                ZeroPadding(pool, 16);
 
-                //fseek(pool, 2, SEEK_CUR);
+                if (tempSize == 0x1c)
+                {
+                    printf("contains a DLS ADSR envelope\n");
 
-                tables[tableCount - 1].attackTimecents = ReadLE(pool, 32);
-                //fseek(pool, 2, SEEK_CUR);
-                tables[tableCount - 1].decayTimecents = ReadLE(pool, 32);
-                tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
-                tables[tableCount - 1].releaseMs = ReadLE(pool, 16);
+                    //fseek(pool, 2, SEEK_CUR);
 
-                printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %d milliseconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseMs);
+                    tables[tableCount - 1].attackTimecents = ReadLE(pool, 32);
+                    //fseek(pool, 2, SEEK_CUR);
+                    tables[tableCount - 1].decayTimecents = ReadLE(pool, 32);
+                    tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
+                    tables[tableCount - 1].releaseMs = ReadLE(pool, 16);
 
-                // velocity to attack scale
-                // explanation needed what this means
-                ReadLE(pool, 32);
+                    printf("\tAttack = %d timecents:\n\tDecay = %d timecents:\n\tSustain Level = -%.03f dB:\n\tRelease = %d milliseconds:\n", tables[tableCount - 1].attackTimecents, tables[tableCount - 1].decayTimecents, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseMs);
 
-                // key to decay scale
-                // ???
-                ReadLE(pool, 32);
+                    // velocity to attack scale
+                    // explanation needed what this means
+                    ReadLE(pool, 32);
+
+                    // key to decay scale
+                    // ???
+                    ReadLE(pool, 32);
+                }
+                else if(tempSize == 0x10)
+                {
+                    printf("contains a ADSR envelope\n");
+
+                    tables[tableCount - 1].attackMs/*Timecents*/ = ReadLE(pool, 16);
+                    tables[tableCount - 1].decayMs/*Timecents*/ = ReadLE(pool, 16);
+                    tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
+                    tables[tableCount - 1].releaseMs = ReadLE(pool, 16);
+                    printf("\tAttack = %d milliseconds:\n\tDecay = %d milliseconds:\n\tSustain Level = -%.03f dB:\n\tRelease = %d milliseconds:\n", tables[tableCount - 1].attackMs, tables[tableCount - 1].decayMs, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseMs);
+
+                    /*
+                    tables[tableCount - 1].attack = ReadBE(pool, 8);
+                    tables[tableCount - 1].attackDecimal = ReadBE(pool, 8);
+                    tables[tableCount - 1].decay = ReadBE(pool, 8);
+                    tables[tableCount - 1].decayDecimal = ReadBE(pool, 8);
+                    tables[tableCount - 1].sustain = ReadBE(pool, 8);
+                    tables[tableCount - 1].sustainDecimal = ReadBE(pool, 8);
+                    tables[tableCount - 1].release = ReadBE(pool, 8);
+                    tables[tableCount - 1].releaseDecimal = ReadBE(pool, 8);
+                    */
+                }
+                else
+                {
+                    printf("contains unknown garbage!\n");
+                }
             }
-            else if(tempSize == 0x10)
-            {
-                printf("contains a ADSR envelope\n");
-
-                tables[tableCount - 1].attackMs/*Timecents*/ = ReadLE(pool, 16);
-                tables[tableCount - 1].decayMs/*Timecents*/ = ReadLE(pool, 16);
-                tables[tableCount - 1].sustaindB = (double)(0x1000 - ReadLE(pool, 16)) * 0.025;
-                tables[tableCount - 1].releaseMs = ReadLE(pool, 16);
-                printf("\tAttack = %d milliseconds:\n\tDecay = %d milliseconds:\n\tSustain Level = -%.03f dB:\n\tRelease = %d milliseconds:\n", tables[tableCount - 1].attackMs, tables[tableCount - 1].decayMs, tables[tableCount - 1].sustaindB, tables[tableCount - 1].releaseMs);
-
-                /*
-                tables[tableCount - 1].attack = ReadBE(pool, 8);
-                tables[tableCount - 1].attackDecimal = ReadBE(pool, 8);
-                tables[tableCount - 1].decay = ReadBE(pool, 8);
-                tables[tableCount - 1].decayDecimal = ReadBE(pool, 8);
-                tables[tableCount - 1].sustain = ReadBE(pool, 8);
-                tables[tableCount - 1].sustainDecimal = ReadBE(pool, 8);
-                tables[tableCount - 1].release = ReadBE(pool, 8);
-                tables[tableCount - 1].releaseDecimal = ReadBE(pool, 8);
-                */
-            }
-            else
-            {
-                printf("contains unknown garbage!\n");
-            }
-        }
             // seek to the next table chunk
             fseek(pool, nextOffset, SEEK_SET);
-    }
+        }
     }
 
 
@@ -635,7 +637,6 @@ int main(int argc, const char* argv[])
                 }
                 else
                 {
-
                     for (int k = 0; k < macroCount; k++)
                     {
                         if (macros[k].id == tempID)
@@ -1059,6 +1060,97 @@ int main(int argc, const char* argv[])
     bankText = bankTemplateText.str();
     bankTemplate << bankText;
     bankTemplate.close();
+
+
+    SF2 sf(22050);
+    char buf[50];
+    unsigned int bank;
+    unsigned int instr;
+    unsigned int j;
+    unsigned int sf2SampleNum=0, sf2InstrNum=0, sf2BankNum=0;
+
+    for(bank=0; bank<1; bank++)
+    {
+        for(instr=0; instr<=0x7f; instr++)
+        {
+            if(((instr / 128) != 0) && ((instr %128)==0))
+            {
+                // on every multiple of 128 use a new bank, since a bank can only hold 128 instr (from 0 to 0x7f)
+                cout << "BankNum: " << sf2BankNum <<endl;
+                sf2BankNum++;
+            }
+
+            if (instruments[instr].exists && instruments[instr].noteCount)
+            {
+                sprintf (buf, "B%02XI%04X", bank, instruments[instr].id);
+                sf.add_new_instrument(buf);
+                    sf2InstrNum++;
+
+                for(j=0;  j < instruments[instr].noteCount; j++, sf2SampleNum++)
+                {
+                    const int& dspIdx = instruments[instr].notes[j].sampleID;
+
+                    sprintf(buf, "%05d (0x%04X).dsp", dsps[dspIdx].id, dsps[dspIdx].id);
+                    FILE * samplefile = fopen(buf, "rb");
+                    if (!samplefile)
+                    {
+                        break;
+                    }
+
+                    sprintf (buf, "B%02XI%04XS%04X", bank, instruments[instr].id, j);
+                    sf.add_new_sample(samplefile,
+                                      SampleType::SIGNED_16,
+                                      buf,
+                                      0x00,
+                                      dsps[dspIdx].sampleCount,
+                                      dsps[dspIdx].loopFlag,
+                                      dsps[dspIdx].loopStart,
+                                      dsps[dspIdx].loopStart + dsps[dspIdx].loopLength,
+                                      dsps[dspIdx].baseNote,
+                                      0, //dsps[dspIdx].fineTune, ???
+                                      dsps[dspIdx].sampleRate);
+
+
+                    if (!instruments[instr].notes[j].exists)
+                    {
+                        continue;
+                    }
+
+                    sf.add_new_inst_bag();
+
+                    sf.add_new_inst_generator(SFGenerator::sampleModes, dsps[dspIdx].loopFlag); //looping
+                    sf.add_new_inst_generator(SFGenerator::sampleID, sf2SampleNum);
+                    sf.add_new_inst_generator(SFGenerator::keyRange, instruments[instr].notes[j].startNote, instruments[instr].notes[j].endNote); // specify key range
+                    sf.add_new_inst_generator(SFGenerator::velRange, 0, 127);
+                    sf.add_new_inst_generator(SFGenerator::overridingRootKey, instruments[instr].notes[j].baseNote - instruments[instr].notes[j].transpose);
+                    sf.add_new_inst_generator(SFGenerator::initialAttenuation, (uint16_t)floor(getVolume(instruments[instr].notes[j].volume)));
+                    sf.add_new_inst_generator(SFGenerator::pan, (uint16_t)floor(getPan(instruments[instr].notes[j].pan)));
+
+                    // ADSR
+                    sf.add_new_inst_generator(SFGenerator::attackVolEnv, instruments[instr].notes[j].attack);
+                    sf.add_new_inst_generator(SFGenerator::decayVolEnv, instruments[instr].notes[j].decay);
+                    sf.add_new_inst_generator(SFGenerator::sustainVolEnv, floor((instruments[instr].notes[j].sustain)));
+                    sf.add_new_inst_generator(SFGenerator::releaseVolEnv, instruments[instr].notes[j].release);
+
+                }// foreach sample
+
+                sprintf (buf, "B%02XI%04X", bank, instruments[instr].id);
+                sf.add_new_preset(buf, instr%128, bank);
+                sf.add_new_preset_bag();
+                sf.add_new_preset_generator(SFGenerator::instrument, sf2InstrNum-1);
+            }
+        }
+    }
+
+    cout << "attempting to write sf2 now..." << endl;
+    FILE* sfout = fopen("sftest.sf2", "wb");
+    if (!sfout)
+    {
+        cerr<<"error: cannot open soundfont"<<endl;
+        return 2;
+    }
+
+    sf.write(sfout);
 
     return 0;
 }
