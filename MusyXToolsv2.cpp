@@ -14,7 +14,10 @@
 #include <regex>
 #include <math.h>
 #include <byteswap.h>
-#include <unistd.h>
+
+extern "C"{
+#include <vgmstream/vgmstream.h>
+}
 
 #include "libsf2/sf2.hpp"
 
@@ -60,7 +63,7 @@ static inline u32 ZeroPadding(FILE*f, s32 b)
     return ret;
 }
 
-typedef struct
+typedef struct _dsp_sample
 {
     u32 id;
     u32 offset;
@@ -80,6 +83,8 @@ typedef struct
     u8 sampleFormat;
 
     u32 sampleCount; // no. of raw, i.e. uncompressed pcm frames
+    s16* pcm=nullptr;
+
     u32 loopStart;
     u32 loopLength;
     u32 infoOffset; // adpcm decoder
@@ -94,6 +99,12 @@ typedef struct
     u8 lps;          // predictor/scale for loop context, actually 2 bytes, higher byte is zero though
     u16 lyn1;         // sample history (n-1) for loop context
     u16 lyn2;         // sample history (n-2) for loop context
+
+    ~_dsp_sample()
+    {
+        delete this->pcm;
+        this->pcm = nullptr;
+    }
 } dsp;
 
 typedef struct
@@ -448,6 +459,12 @@ int main(int argc, const char* argv[])
         extract_data(samp, dsp, sample_size);
 
         fclose(dsp);
+
+
+        VGMSTREAM * handle = init_vgmstream(dsp_path);
+        dsps[i].pcm = new s16[handle->num_samples];
+        render_vgmstream(dsps[i].pcm, handle->num_samples, handle);
+        close_vgmstream (handle);
     }
 
     fclose(samp);
@@ -1091,14 +1108,15 @@ int main(int argc, const char* argv[])
                     const int& dspIdx = instruments[instr].notes[j].sampleID;
 
                     sprintf(buf, "%05d (0x%04X).dsp", dsps[dspIdx].id, dsps[dspIdx].id);
-                    FILE * samplefile = fopen(buf, "rb");
-                    if (!samplefile)
+
+                    if (dsps[dspIdx].pcm == nullptr)
                     {
+                        printf("dsp sample %d has not been decoded", dspIdx);
                         break;
                     }
 
                     sprintf (buf, "B%02XI%04XS%04X", bank, instruments[instr].id, j);
-                    sf.add_new_sample(samplefile,
+                    sf.add_new_sample(dsps[dspIdx].pcm,
                                       SampleType::SIGNED_16,
                                       buf,
                                       0x00,
