@@ -1088,6 +1088,7 @@ int main(int argc, const char* argv[])
 
     for(bank=0; bank<1; bank++)
     {
+        instrument (&instrToUse)[128] = instruments;
         for(instr=0; instr<=0x7f; instr++)
         {
             if(((instr / 128) != 0) && ((instr %128)==0))
@@ -1097,15 +1098,15 @@ int main(int argc, const char* argv[])
                 sf2BankNum++;
             }
 
-            if (instruments[instr].exists && instruments[instr].noteCount)
+            if (instrToUse[instr].exists && instrToUse[instr].noteCount)
             {
-                sprintf (buf, "B%02XI%04X", bank, instruments[instr].id);
+                sprintf (buf, "B%02XI%04X", bank, instrToUse[instr].id);
                 sf.add_new_instrument(buf);
                     sf2InstrNum++;
 
-                for(j=0;  j < instruments[instr].noteCount; j++, sf2SampleNum++)
+                for(j=0;  j < instrToUse[instr].noteCount; j++, sf2SampleNum++)
                 {
-                    const int& dspIdx = instruments[instr].notes[j].sampleID;
+                    const int& dspIdx = instrToUse[instr].notes[j].sampleID;
 
                     sprintf(buf, "%05d (0x%04X).dsp", dsps[dspIdx].id, dsps[dspIdx].id);
 
@@ -1115,7 +1116,7 @@ int main(int argc, const char* argv[])
                         break;
                     }
 
-                    sprintf (buf, "B%02XI%04XS%04X", bank, instruments[instr].id, j);
+                    sprintf (buf, "B%02XI%04XS%04X", bank, instrToUse[instr].id, j);
                     sf.add_new_sample(dsps[dspIdx].pcm,
                                       SampleType::SIGNED_16,
                                       buf,
@@ -1129,7 +1130,7 @@ int main(int argc, const char* argv[])
                                       dsps[dspIdx].sampleRate);
 
 
-                    if (!instruments[instr].notes[j].exists)
+                    if (!instrToUse[instr].notes[j].exists)
                     {
                         continue;
                     }
@@ -1138,21 +1139,21 @@ int main(int argc, const char* argv[])
 
                     sf.add_new_inst_generator(SFGenerator::sampleModes, dsps[dspIdx].loopFlag); //looping
                     sf.add_new_inst_generator(SFGenerator::sampleID, sf2SampleNum);
-                    sf.add_new_inst_generator(SFGenerator::keyRange, instruments[instr].notes[j].startNote, instruments[instr].notes[j].endNote); // specify key range
+                    sf.add_new_inst_generator(SFGenerator::keyRange, instrToUse[instr].notes[j].startNote, instrToUse[instr].notes[j].endNote); // specify key range
                     sf.add_new_inst_generator(SFGenerator::velRange, 0, 127);
-                    sf.add_new_inst_generator(SFGenerator::overridingRootKey, instruments[instr].notes[j].baseNote - instruments[instr].notes[j].transpose);
-                    sf.add_new_inst_generator(SFGenerator::initialAttenuation, (uint16_t)floor(getVolume(instruments[instr].notes[j].volume)));
-                    sf.add_new_inst_generator(SFGenerator::pan, (uint16_t)floor(getPan(instruments[instr].notes[j].pan)));
+                    sf.add_new_inst_generator(SFGenerator::overridingRootKey, instrToUse[instr].notes[j].baseNote - instrToUse[instr].notes[j].transpose);
+                    sf.add_new_inst_generator(SFGenerator::initialAttenuation, (uint16_t)floor(getVolume(instrToUse[instr].notes[j].volume)));
+                    sf.add_new_inst_generator(SFGenerator::pan, (uint16_t)floor(getPan(instrToUse[instr].notes[j].pan)));
 
                     // ADSR
-                    sf.add_new_inst_generator(SFGenerator::attackVolEnv, instruments[instr].notes[j].attack);
-                    sf.add_new_inst_generator(SFGenerator::decayVolEnv, instruments[instr].notes[j].decay);
-                    sf.add_new_inst_generator(SFGenerator::sustainVolEnv, floor((instruments[instr].notes[j].sustain)));
-                    sf.add_new_inst_generator(SFGenerator::releaseVolEnv, instruments[instr].notes[j].release);
+//                    sf.add_new_inst_generator(SFGenerator::attackVolEnv, instrToUse[instr].notes[j].attack);
+//                    sf.add_new_inst_generator(SFGenerator::decayVolEnv, instrToUse[instr].notes[j].decay);
+//                    sf.add_new_inst_generator(SFGenerator::sustainVolEnv, floor((instrToUse[instr].notes[j].sustain)));
+//                    sf.add_new_inst_generator(SFGenerator::releaseVolEnv, instrToUse[instr].notes[j].release);
 
                 }// foreach sample
 
-                sprintf (buf, "B%02XI%04X", bank, instruments[instr].id);
+                sprintf (buf, "B%02XI%04X", bank, instrToUse[instr].id);
                 sf.add_new_preset(buf, instr%128, bank);
                 sf.add_new_preset_bag();
                 sf.add_new_preset_generator(SFGenerator::instrument, sf2InstrNum-1);
