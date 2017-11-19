@@ -370,7 +370,7 @@ int main(int argc, const char* argv[])
 
     for (unsigned int i = 0; i < dsps.size(); i++)
     {
-        fseek(sdir, dsps[i].sampOffset, SEEK_SET);
+        fseek(samp, dsps[i].sampOffset, SEEK_SET);
 
         char dsp_path[50];
         sprintf(dsp_path, "%05d (0x%04X).dsp", dsps[i].id, dsps[i].id);
@@ -384,8 +384,6 @@ int main(int argc, const char* argv[])
             printf("skipping dsp %d since it has too many samples", dsps[i].sampleCount);
             continue;
         }
-
-        int nibbles = samples_to_nibbles(dsps[i].sampleCount);
 
         bool loop_flag;
         int loop_start, loop_end;
@@ -428,7 +426,7 @@ int main(int argc, const char* argv[])
         } sDSPADPCM;
 
         sDSPADPCM.num_samples = bswap_32(dsps[i].sampleCount);
-        sDSPADPCM.num_adpcm_nibbles = bswap_32(nibbles);
+        sDSPADPCM.num_adpcm_nibbles = bswap_32(samples_to_nibbles(dsps[i].sampleCount));
         sDSPADPCM.sample_rate = bswap_32(dsps[i].sampleRate);
 
         sDSPADPCM.loop_flag = bswap_16(loop_flag);
@@ -573,7 +571,7 @@ int main(int argc, const char* argv[])
     {
         tempSize = ReadBE(pool, 32);
         nextOffset += tempSize;
-        tempID = ReadBE(pool, 16);
+        tempID = ReadBE(pool, 16); // SoundMacro ObjectID
         if (tempID != 0xffff)
         {
             macroCount++;
@@ -582,7 +580,8 @@ int main(int argc, const char* argv[])
 
             fseek(pool, 2, SEEK_CUR);
             tempOffset = ftell(pool);
-            // Looking for sample info
+
+            // Looking for sample info (i.e. SoundMacros)
             while (ftell(pool) < nextOffset)
             {
                 fseek(pool, 3, SEEK_CUR);
@@ -667,7 +666,7 @@ int main(int argc, const char* argv[])
                             layers[layerCount - 1].notes[j].endNote = ReadBE(pool, 8);
                             layers[layerCount - 1].notes[j].transpose = ReadBE(pool, 8);
                             layers[layerCount - 1].notes[j].volume = ReadBE(pool, 8);
-                            fseek(pool, 2, SEEK_CUR);
+                            fseek(pool, 2, SEEK_CUR); // skip priority and surround pan
                             layers[layerCount - 1].notes[j].pan = ReadBE(pool, 8);
                             fseek(pool, 3, SEEK_CUR);
                             if (macros[k].adsrIndex != 0)
@@ -785,16 +784,28 @@ int main(int argc, const char* argv[])
             layers[i].notes[j].endNote = j;
         }
     }
+    fclose(pool);
 
 
     // Getting our instrument info from proj
     FILE *proj = fopen(argv[1], "rb");
-    fseek(proj, 0x1c, SEEK_SET);
+    printf("opening .proj\n");
+    u32 nextGroupOffset = ReadBE(proj, 32);
+    u16 groupID = ReadBE(proj, 16);
+    u16 groupType = ReadBE(proj, 16);
+    printf("handling groupID %u of type %u\n",groupID, groupType);
+
+    int sizeofEntry = groupType==0 ? 6 : 0x10; // 0 for SongGroup (ie normal / drum page entries of size 6 for use with CSNG), 1 for SFXGroup.
+
+    fseek(proj, 0x1c-8, SEEK_CUR);
+
     u32 projInstOffset = ReadBE(proj, 32);
     u32 projDrumOffset = ReadBE(proj, 32);
-    u32 projFinalOffset = ReadBE(proj, 32);
-    int instCount = (projDrumOffset - projInstOffset) / 6;
-    int drumCount = (projFinalOffset - projDrumOffset) / 6;
+    u32 projMidiSetupTabOffset = ReadBE(proj, 32);
+    int instCount = (projDrumOffset - projInstOffset) / sizeofEntry;
+    int drumCount = (projMidiSetupTabOffset - projDrumOffset) / sizeofEntry;
+    printf("containing %d instruments and %d drum page entries\n",instCount, drumCount);
+
     fseek(proj, projInstOffset, SEEK_SET);
 
     for (unsigned short i = 0; i < 128; i++)
@@ -802,22 +813,22 @@ int main(int argc, const char* argv[])
         instruments[i].exists = false;
         instruments[i].noteCount = 0;
         instruments[i].notes.resize(1);
-        instruments[i].notes[0].sampleID == 0;
+        instruments[i].notes[0].sampleID = -1;
         drums[i].exists = false;
         drums[i].noteCount = 0;
         drums[i].notes.resize(1);
-        drums[i].notes[0].sampleID == 0;
+        drums[i].notes[0].sampleID = -1;
     }
     for (int i = 0; i < instCount; i++)
     {
-        fseek(proj, projInstOffset + i * 6, SEEK_SET);
-        tempID = ReadBE(proj, 16);
+        fseek(proj, projInstOffset + i * sizeofEntry, SEEK_SET);
+        tempID = ReadBE(proj, 16); // ObjectID of this normal page entry
         if (tempID == 0xffff)
             continue;
         else if (tempID & 0x8000)  	// Normal layer section
         {
-            fseek(proj, 2, SEEK_CUR);
-            tempChar = ReadBE(proj, 8);
+            fseek(proj, 2, SEEK_CUR);// skip voice prio and polyphony
+            tempChar = ReadBE(proj, 8); // GM midi program number
 
             for (int j = 0; j < layerCount; j++)
             {
@@ -834,8 +845,8 @@ int main(int argc, const char* argv[])
 
         else if (tempID & 0x4000)  	// Keymap section
         {
-            fseek(proj, 2, SEEK_CUR);
-            tempChar = ReadBE(proj, 8);
+            fseek(proj, 2, SEEK_CUR);// skip voice prio and polyphony
+            tempChar = ReadBE(proj, 8);  // GM midi program number
 
 
             for (int j = 0; j < layerCount; j++)
@@ -853,8 +864,8 @@ int main(int argc, const char* argv[])
 
         else  	// Instrument just has info at macro
         {
-            fseek(proj, 2, SEEK_CUR);
-            tempChar = ReadBE(proj, 8);
+            fseek(proj, 2, SEEK_CUR);// skip voice prio and polyphony
+            tempChar = ReadBE(proj, 8);  // GM midi program number
             instruments[(int)tempChar].exists = true;
 
             instruments[(int)tempChar].id = tempID;
@@ -869,27 +880,57 @@ int main(int argc, const char* argv[])
     fseek(proj, projDrumOffset, SEEK_SET);
     for (int i = 0; i < drumCount; i++)
     {
-        fseek(proj, projDrumOffset + i * 6, SEEK_SET);
-        tempID = ReadBE(proj, 16);
+        fseek(proj, projDrumOffset + i * sizeofEntry, SEEK_SET);
+        tempID = ReadBE(proj, 16); // ObjectID of this drum page entry
         if (tempID == 0xffff)
         {
             continue;
         }
         else
         {
-            fseek(proj, 2, SEEK_CUR);
-            tempChar = ReadBE(proj, 8);
+            fseek(proj, 2, SEEK_CUR); // skip voice prio and polyphony
+            tempChar = ReadBE(proj, 8); // GM midi program number
 
             for (int j = 0; j < layerCount; j++)
             {
                 if (layers[j].id == tempID)
                 {
                     drums[(int)tempChar] = layers[j];
+                    drums[(int)tempChar].exists = true;
                     break;
                 }
             }
-            drums[(int)tempChar].exists = true;
-            printf("Drumkit %d exists\n", tempChar);
+
+            if(!drums[(int)tempChar].exists)
+            {
+                printf("drumkit %d not found in layers, looking through macros\n", (int)tempChar);
+                for (unsigned int j = 0; j < macros.size(); j++)
+                {
+                    if (macros[j].id == tempID)
+                    {
+                        drums[(int)tempChar].exists = true;
+
+                        drums[(int)tempChar].id = tempID;
+                        drums[(int)tempChar].notes.resize(1);
+                        drums[(int)tempChar].notes[0].startNote = 0;
+                        drums[(int)tempChar].notes[0].endNote = 127;
+                        drums[(int)tempChar].notes[0].baseNote = macros[j].rootKey;
+                        drums[(int)tempChar].notes[0].sampleID = macros[j].sampleID;
+                        drums[(int)tempChar].notes[0].loopFlag = macros[j].loopFlag;
+                        printf("drumkit %d exists as a single macro\n", (int)tempChar);
+                        break;
+                    }
+                }
+            }
+            printf("Drumkit %d ", tempChar);
+            if(drums[(int)tempChar].exists)
+            {
+                printf(" exist\n");
+            }
+            else
+            {
+                printf(" does not exist\n");
+            }
         }
     }
     fclose(proj);
@@ -897,7 +938,7 @@ int main(int argc, const char* argv[])
     printf("Taking care of instruments with only macros\n");
     for (unsigned short i = 0; i < 128; i++)
     {
-        if (instruments[i].exists && instruments[i].notes[0].sampleID == 0)
+        if (instruments[i].exists && instruments[i].notes[0].sampleID == (u16)-1)
         {
             printf("Looking for instrument %d macro\n", i);
             for (int j = 0; j < macroCount; j++)
@@ -933,7 +974,6 @@ int main(int argc, const char* argv[])
             }
         }
     }
-    fclose(pool);
 
     ofstream bankTemplate("soundfontBuild.txt");
     stringstream bankTemplateText;
