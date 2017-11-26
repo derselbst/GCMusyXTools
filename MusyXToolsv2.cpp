@@ -725,7 +725,7 @@ int main(int argc, const char* argv[])
                 {
                     if (layers[k].id == tempID)
                     {
-                        printf("Keymap %X note %d uses layer %X\n", layers[i].id, j, layers[k].id);
+                        printf("Keymap %X note %d uses layer %X which has %d keymaps\n", layers[i].id, j, layers[k].id, layers[i].noteCount);
                         layers[i].noteCount += layers[k].noteCount - 1;
                         layers[i].notes.resize(layers[i].noteCount);
                         layers[i].notes[j] = layers[k].notes[0];	// Only taking the first region for now
@@ -840,7 +840,7 @@ int main(int argc, const char* argv[])
             }
             instruments[(int)tempChar].exists = true;
 //				printf("Instrument %d exists\n", tempChar);
-            printf("%s exists\n", general_MIDI_instr_names[tempChar]);
+            printf("instr %X (%s) exists\n", (int)tempChar, general_MIDI_instr_names[tempChar]);
         }
 
         else if (tempID & 0x4000)  	// Keymap section
